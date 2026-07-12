@@ -1,44 +1,94 @@
-# Push to GitHub (manual)
+# Push CollectQuiet to GitHub
 
-GitHub CLI is installed but not logged in. The browser login window may not appear from the agent terminal — run these steps **in your own PowerShell**:
+**Your GitHub username:** `nimish14`  
+**Repo name:** `collectquiet`  
+**Local path:** `C:\Users\pande\Desktop\Run`
 
-## Option A — Device code (recommended)
+GitHub CLI is installed at `C:\Program Files\GitHub CLI\gh.exe` (not on PATH).  
+You are **not logged in** yet — complete Step 1 below in your own PowerShell window.
+
+---
+
+## Step 1 — Log in (device code, ~1 min)
+
+Open **PowerShell** and run:
 
 ```powershell
-gh auth login
+& "C:\Program Files\GitHub CLI\gh.exe" auth login --hostname github.com --git-protocol https --skip-ssh-key
 ```
 
-When prompted, choose:
-1. **GitHub.com**
-2. **HTTPS**
-3. **Login with a web browser** — if no browser opens, choose **Paste an authentication token** instead
+It will print something like:
 
-If browser login fails, use a Personal Access Token:
-1. Go to https://github.com/settings/tokens → **Generate new token (classic)**
-2. Scope: `repo`
-3. Run: `gh auth login --with-token` and paste the token
+```
+! First copy your one-time code: XXXX-XXXX
+Open this URL to continue in your web browser: https://github.com/login/device
+```
 
-## Option B — Create repo on GitHub.com
+1. Copy the code (e.g. `ACC8-803A`)
+2. Open https://github.com/login/device in any browser
+3. Paste the code → **Authorize** GitHub CLI
 
-1. Open https://github.com/new
-2. Repository name: `collectquiet`
-3. Public, **do not** add README (already committed locally)
-4. Create repository, then run:
+Verify:
+
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" auth status
+```
+
+---
+
+## Step 2 — Create repo & push (~30 sec)
 
 ```powershell
 cd C:\Users\pande\Desktop\Run
-git remote add origin https://github.com/YOUR_USERNAME/collectquiet.git
+& "C:\Program Files\GitHub CLI\gh.exe" repo create collectquiet --public --source=. --remote=origin --push
+```
+
+**Done.** Repo URL: https://github.com/nimish14/collectquiet
+
+---
+
+## Alternative — Personal Access Token (if device code fails)
+
+1. Go to https://github.com/settings/tokens → **Generate new token (classic)**
+2. Scope: **`repo`**
+3. Run:
+
+```powershell
+# Paste token when prompted (input is hidden)
+$token = Read-Host "Paste GitHub PAT"
+$token | & "C:\Program Files\GitHub CLI\gh.exe" auth login --with-token
+```
+
+Then run Step 2 above.
+
+---
+
+## Alternative — SSH key (already generated)
+
+A new SSH key was created on this machine. Add this public key at  
+https://github.com/settings/keys → **New SSH key**:
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDtTAGwTYXu6PkhjpBUs9OdvrP19NQ8tDcAseNwVUtur pandey.nimish11@gmail.com
+```
+
+Then:
+
+```powershell
+cd C:\Users\pande\Desktop\Run
+git remote add origin git@github.com:nimish14/collectquiet.git
+& "C:\Program Files\GitHub CLI\gh.exe" auth login --hostname github.com --git-protocol ssh --skip-ssh-key
+# Or create repo on https://github.com/new (name: collectquiet, no README)
 git push -u origin main
 ```
 
-Windows will prompt for GitHub login in a browser or credential dialog.
+---
 
-## Already committed locally
+## What's already committed
 
-- Branch: `main`
-- 60 files, secrets excluded (`.env` is gitignored)
-- Never commit `Run/.env` — it contains private API keys
+- Branch: `main` (4 commits)
+- `.env` is **gitignored** — never commit it
 
 ## After push
 
-Repo URL: `https://github.com/YOUR_USERNAME/collectquiet`
+Connect Vercel: import https://github.com/nimish14/collectquiet
