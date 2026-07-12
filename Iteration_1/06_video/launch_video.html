@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CollectQuiet Launch Video</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { background: #000; overflow: hidden; font-family: 'DM Sans', sans-serif; }
+    .stage {
+      width: 100vw; height: 100vh; position: relative;
+      background: linear-gradient(145deg, #0f3d2e 0%, #14201a 55%, #1a5c45 100%);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+    }
+    .scene {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center;
+      padding: 2rem; opacity: 0; pointer-events: none;
+    }
+    .scene.active { opacity: 1; }
+    h1 { font-size: clamp(2rem, 6vw, 4rem); max-width: 14ch; line-height: 1.1; margin-bottom: 1rem; }
+    h1 em { font-family: 'Instrument Serif', serif; font-style: italic; color: #7ee0b8; }
+    p { font-size: clamp(1.1rem, 3vw, 1.6rem); color: #c8f7e2; max-width: 28ch; }
+    .logo { width: 96px; height: 96px; margin-bottom: 1.5rem; }
+    .tag { background: #7ee0b8; color: #0f3d2e; padding: 0.5rem 1.25rem; border-radius: 999px; font-weight: 700; margin-top: 1.5rem; }
+    .bar { position: fixed; bottom: 0; left: 0; height: 4px; background: #7ee0b8; width: 0; z-index: 10; }
+    .controls { position: fixed; top: 1rem; right: 1rem; z-index: 20; }
+    button { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: .5rem 1rem; border-radius: 8px; cursor: pointer; font: inherit; }
+    .cite { position: fixed; bottom: 1rem; left: 1rem; font-size: .7rem; color: rgba(255,255,255,.45); max-width: 40ch; text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="scene active" data-t="0">
+      <svg class="logo" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#7EE0B8"/><path d="M8 16c0-4.4 3.6-8 8-8 2.2 0 4.2.9 5.7 2.3" stroke="#0F3D2E" stroke-width="2.5" stroke-linecap="round"/><path d="M24 16c0 4.4-3.6 8-8 8" stroke="#0F3D2E" stroke-width="2.5" stroke-linecap="round"/><circle cx="16" cy="16" r="2.5" fill="#0F3D2E"/></svg>
+      <h1>CollectQuiet</h1>
+      <p>Get paid without the awkward chase.</p>
+    </div>
+    <div class="scene" data-t="4000">
+      <p style="font-size:1.3rem;margin-bottom:1rem">Electricians. Plumbers. Freelancers.</p>
+      <h1>The worst part isn't sending the invoice.</h1>
+    </div>
+    <div class="scene" data-t="9000">
+      <h1>It's <em>chasing</em> it.</h1>
+      <p style="margin-top:1rem">That "just checking in" email you dread.</p>
+    </div>
+    <div class="scene" data-t="14000">
+      <h1>Log it once.</h1>
+      <p style="margin-top:1rem">We send polite reminders — escalating only if needed.</p>
+    </div>
+    <div class="scene" data-t="19000">
+      <h1>From your name.<br/>With a paper trail.</h1>
+      <p style="margin-top:1rem">No QuickBooks. No accounting software.</p>
+    </div>
+    <div class="scene" data-t="24000">
+      <h1>You earned it.<br/>We'll ask.</h1>
+      <span class="tag">14-day free trial · collectquiet.com</span>
+    </div>
+  </div>
+  <div class="bar" id="bar"></div>
+  <div class="controls"><button id="replay">Replay</button></div>
+  <div class="cite">Evidence: Indie Hackers Mar 2026 — "worst part isn't sending the invoice, it's chasing it afterwards"</div>
+  <script>
+    const DURATION = 29000;
+    const scenes = [...document.querySelectorAll('.scene')];
+    const bar = document.getElementById('bar');
+    let start = performance.now();
+    let raf;
+    function tick(now) {
+      const elapsed = (now - start) % DURATION;
+      bar.style.width = (elapsed / DURATION * 100) + '%';
+      scenes.forEach(s => {
+        const t = +s.dataset.t;
+        const next = scenes[scenes.indexOf(s) + 1];
+        const end = next ? +next.dataset.t : DURATION;
+        s.classList.toggle('active', elapsed >= t && elapsed < end);
+      });
+      raf = requestAnimationFrame(tick);
+    }
+    function play() { cancelAnimationFrame(raf); start = performance.now(); raf = requestAnimationFrame(tick); }
+    document.getElementById('replay').onclick = play;
+    play();
+  </script>
+</body>
+</html>

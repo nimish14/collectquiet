@@ -1,0 +1,23 @@
+﻿{
+    "by":  "robz75",
+    "descendants":  21,
+    "id":  44308532,
+    "kids":  [
+                 44310390,
+                 44316608,
+                 44308996,
+                 44318309,
+                 44311024,
+                 44311038,
+                 44310997,
+                 44352175,
+                 44315166,
+                 44308547,
+                 44334843
+             ],
+    "score":  14,
+    "text":  "Hey guys,\u003cp\u003eFounder here. I’m working on building my next project and I don’t want to waste time solving fake problems.\u003cp\u003eRight now, what\u0026#x27;s currently extremely painful \u0026amp; annoying to do in your job? (You can be very brutally honest)\u003cp\u003eMore specifically, I\u0026#x27;m interested how you handle exploratory data-related tasks from your team?\u003cp\u003eVery curious to get your current workflows, issues and frustrations :)",
+    "time":  1750242468,
+    "title":  "Ask HN: Data engineers, What suck when working on exploratory data-related task?",
+    "type":  "story"
+}

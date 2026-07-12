@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+!.env*.example
+
+# Local tooling
+node_modules/
+dist/
+.vercel/
+supabase/.temp/
+**/supabase/.temp/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

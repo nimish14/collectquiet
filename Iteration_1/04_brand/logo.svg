@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#F6F4EF"/>
+  <rect x="64" y="64" width="384" height="384" rx="72" fill="#0F3D2E"/>
+  <path d="M160 256c0-53 43-96 96-96 26.5 0 50.5 10.7 68 28" stroke="#7EE0B8" stroke-width="28" stroke-linecap="round"/>
+  <path d="M352 256c0 53-43 96-96 96-26.5 0-50.5-10.7-68-28" stroke="#C8F7E2" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="32" fill="#7EE0B8"/>
+  <text x="256" y="430" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-size="42" font-weight="700" fill="#0F3D2E">CollectQuiet</text>
+</svg>
