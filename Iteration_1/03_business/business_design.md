@@ -40,8 +40,8 @@ CollectQuiet is a **standalone invoice reminder system** — not accounting soft
 
 ## Target Customer
 
-**Primary:** Solo trades invoicing commercial clients (electricians, plumbers, HVAC techs)  
-**Secondary:** Freelancers without QuickBooks  
+**Primary:** Solo freelancers and consultants invoicing clients on net-15/30 terms  
+**Secondary:** Small agencies without full accounting software  
 **Anti-persona:** Enterprise AR teams with NetSuite — they need collections software, not CollectQuiet
 
 **Persona quote (fetched):**
