@@ -3,13 +3,13 @@
 **Version:** 1.0  
 **Date:** 2026-07-12  
 **Live product:** https://collectquiet.vercel.app  
-**Status:** MVP published, India freelancer positioning
+**Status:** MVP published, global freelancer positioning
 
 ---
 
 ## 1. Executive Summary
 
-**CollectQuiet** helps Indian freelancers and consultants get paid without the awkward invoice chase. Users log an invoice once, then send a calibrated sequence of polite → firm reminders via **email** or **WhatsApp** — with a full audit trail.
+**CollectQuiet** helps freelancers and consultants worldwide get paid without the awkward invoice chase. Users log an invoice once, then send a calibrated sequence of polite → firm reminders via **email** or **WhatsApp** — with a full audit trail.
 
 **One-line thesis:** Freelancers already did the work; chasing payment feels desperate and gets deferred until money is written off. CollectQuiet is the reminder layer, not accounting software.
 
@@ -28,12 +28,12 @@
 | Friday afternoons spent chasing invoices | r/smallbusiness pattern (research dossier) |
 | Builders shipping in this niche in 2026 | PayNudger, Dueflo, InvoiceBlitz — validated demand |
 
-### 2.2 Why India / freelancers
+### 2.2 Why freelancers (global)
 
 - **Freelancers** (designers, developers, writers, consultants) invoice after delivery with 15–45 day terms.
-- **WhatsApp** is the default client channel; email alone is weak in India.
+- **WhatsApp** is a common client channel alongside email worldwide.
 - **Plumbers/electricians** often collect on completion — poor fit for invoice-chase software.
-- Recovering **one** overdue invoice (₹15k–₹50k) pays for years of subscription.
+- Recovering **one** overdue invoice ($500–$5,000+) pays for years of subscription.
 
 ### 2.3 Anti-persona
 
@@ -75,8 +75,8 @@ flowchart LR
 | WhatsApp remind | Opens `wa.me` with pre-filled message |
 | Audit log | Every reminder stored with timestamp + preview |
 | CSV export | Invoices + reminder log for disputes |
-| Settings | Business name, sender, INR/USD |
-| Landing | India pricing (₹499 / ₹999), social proof quotes |
+| Settings | Business name, sender, USD/INR |
+| Landing | Global pricing ($12 / $24), social proof quotes |
 
 ### 3.4 v2 roadmap
 
@@ -84,29 +84,29 @@ flowchart LR
 |----------|---------|-----|
 | P1 | Server-side email (Resend/Postmark edge function) | No mail-client dependency |
 | P1 | Auto-scheduled reminders (cron) | True automation vs manual click |
-| P2 | Razorpay / UPI payment link tracking | India-native payments |
+| P2 | Payment link open tracking | Track when clients click pay links |
 | P2 | WhatsApp Business API | Programmatic WA send |
 | P3 | Accountant read-only portal | Referral channel |
-| P3 | Hindi reminder templates | Localization |
+| P3 | Localized reminder templates | Optional language packs |
 
 ---
 
 ## 4. Business Model
 
-### 4.1 Pricing (India)
+### 4.1 Pricing
 
 | Plan | Price | Includes |
 |------|-------|----------|
-| Trial | ₹0 / 14 days | Full feature access |
-| Starter | ₹499/mo | 25 active invoices, email + WhatsApp |
-| Pro | ₹999/mo | Unlimited invoices, auto-scheduling (planned), UPI tracking |
+| Trial | $0 / 14 days | Full feature access |
+| Starter | $12/mo | 25 active invoices, email + WhatsApp |
+| Pro | $24/mo | Unlimited invoices, auto-scheduling (planned), payment link tracking |
 
 ### 4.2 Unit economics (target)
 
 | Metric | Target |
 |--------|--------|
 | Gross margin | 85%+ (email/WA opens are near-zero marginal cost in v1) |
-| CAC | < ₹2,500 via organic (Reddit, IH, freelancer communities) |
+| CAC | < $30 via organic (Reddit, IH, freelancer communities) |
 | Payback | 1 recovered invoice |
 | Churn risk | Low if user recovers money in month 1 |
 
@@ -114,7 +114,7 @@ flowchart LR
 
 | Competitor | Position | CollectQuiet difference |
 |------------|----------|-------------------------|
-| PayNudger | Early IH builder tool | Polished UX, WhatsApp, INR-native |
+| PayNudger | Early IH builder tool | Polished UX, WhatsApp, global-friendly |
 | Dueflo | QuickBooks AI collector, ~$49/mo | No QB required, lower price |
 | Zoho Invoice / FreshBooks | Full accounting | Complement, not replace — "reminder layer only" |
 | Manual spreadsheets | Free | Tone library + audit trail + sequence |
@@ -125,14 +125,14 @@ flowchart LR
 2. **Design partners** — 10 freelancers who share overdue-invoice stories
 3. **Content** — "How to follow up without sounding desperate" (WhatsApp templates)
 4. **Accountant adjacency** — CAs who file taxes but don't chase AR
-5. **Builder communities** — r/SideProject, r/indianstartups, Show HN
+5. **Builder communities** — r/SideProject, r/freelance, Show HN
 
 ### 4.5 Messaging pillars
 
 1. **"You earned it. We'll ask."** — removes personal awkwardness
 2. **"No accounting software required"** — direct market gap
 3. **"Paper trail if they get difficult"** — dispute-ready audit log
-4. **"WhatsApp-native for India"** — channel fit
+4. **"Email + WhatsApp reminders"** — channel fit for global freelancers
 
 ---
 
@@ -200,7 +200,7 @@ Iteration_1/05_product/collectquiet/
 │       └── escape.ts    # XSS prevention
 ├── supabase/
 │   ├── schema.sql       # Tables, RLS, triggers
-│   └── migration_freelancer.sql  # INR, phone columns
+│   └── migration_freelancer.sql  # currency, locale, phone columns
 ├── vercel.json          # SPA fallback rewrite
 └── vite.config.ts       # Env injection at build time
 ```
@@ -323,7 +323,7 @@ Never set `service_role` in Vercel or any client-visible env.
 | Signups / week | Validation signal |
 | Invoices added / active user | Activation |
 | Reminders sent / user | Core value delivery |
-| ₹ recovered (self-reported) | Outcome metric |
+| $ recovered (self-reported) | Outcome metric |
 | 30-day retention | Product-market fit |
 
 ---
@@ -332,11 +332,11 @@ Never set `service_role` in Vercel or any client-visible env.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Fast-follower in validated niche | High | Medium | Win on India/WhatsApp UX + tone library |
+| Fast-follower in validated niche | High | Medium | Win on WhatsApp UX + tone library |
 | Email deliverability at scale | Medium | High | v2: transactional provider + domain auth |
 | Users expect full accounting | Medium | Low | Clear positioning on landing page |
 | WhatsApp API policy changes | Low | Medium | mailto/wa.me deep links as v1 fallback |
-| Low willingness to pay in India | Medium | High | Price at ₹499; prove ROI with one recovery |
+| Low willingness to pay | Medium | High | Price at $12/mo; prove ROI with one recovery |
 
 ---
 

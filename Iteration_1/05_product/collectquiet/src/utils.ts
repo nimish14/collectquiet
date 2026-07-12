@@ -1,6 +1,6 @@
 import type { AppSettings } from './types';
 
-export function formatMoney(n: number, currency = 'INR', locale = 'en-IN'): string {
+export function formatMoney(n: number, currency = 'USD', locale = 'en-US'): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
@@ -8,7 +8,7 @@ export function formatMoney(n: number, currency = 'INR', locale = 'en-IN'): stri
   }).format(n);
 }
 
-export function formatDate(iso: string, locale = 'en-IN'): string {
+export function formatDate(iso: string, locale = 'en-US'): string {
   return new Date(iso + 'T12:00:00').toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',
@@ -72,8 +72,7 @@ export function openMailto(to: string, subject: string, body: string): void {
 
 export function openWhatsApp(phone: string, message: string): void {
   const digits = phone.replace(/\D/g, '');
-  const normalized = digits.startsWith('91') || digits.length > 10 ? digits : `91${digits}`;
-  window.open(`https://wa.me/${normalized}?text=${encodeURIComponent(message)}`, '_blank');
+  window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
 export async function copyText(text: string): Promise<void> {

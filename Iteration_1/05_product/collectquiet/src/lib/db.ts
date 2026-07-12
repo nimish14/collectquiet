@@ -86,8 +86,8 @@ export async function fetchSettings(userId: string): Promise<AppSettings> {
       businessName: '',
       senderName: '',
       senderEmail: '',
-      currency: 'INR',
-      locale: 'en-IN',
+      currency: 'USD',
+      locale: 'en-US',
       sequence: DEFAULT_SEQUENCE,
     };
   }
@@ -97,8 +97,8 @@ export async function fetchSettings(userId: string): Promise<AppSettings> {
     businessName: row.business_name ?? '',
     senderName: row.sender_name ?? '',
     senderEmail: row.sender_email ?? '',
-    currency: row.currency ?? 'INR',
-    locale: row.locale ?? 'en-IN',
+    currency: row.currency ?? 'USD',
+    locale: row.locale ?? 'en-US',
     sequence: Array.isArray(row.sequence) && row.sequence.length > 0 ? row.sequence : DEFAULT_SEQUENCE,
   };
 }

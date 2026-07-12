@@ -58,8 +58,8 @@ const state: State = {
     businessName: '',
     senderName: '',
     senderEmail: '',
-    currency: 'INR',
-    locale: 'en-IN',
+    currency: 'USD',
+    locale: 'en-US',
     sequence: DEFAULT_SEQUENCE,
   },
   selectedId: null,
@@ -267,7 +267,7 @@ function landingHtml(): string {
   <section class="hero">
     <div class="hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">For Indian freelancers & consultants</p>
+        <p class="eyebrow">For freelancers & consultants</p>
         <h1>Get paid without the <em>awkward</em> chase.</h1>
         <p class="lead">Client stalling on payment? CollectQuiet sends polite email or WhatsApp reminders — so you stop writing "just checking in on the invoice" at midnight.</p>
         <div class="hero-cta">
@@ -284,15 +284,15 @@ function landingHtml(): string {
       <div class="hero-card">
         <div class="mock-header">
           <span>Overdue this week</span>
-          <strong>${formatMoney(outstanding() || 45000, 'INR')}</strong>
+          <strong>${formatMoney(outstanding() || 4500, 'USD')}</strong>
         </div>
         <div class="mock-rows">
-          <div class="mock-row"><span>Brand Studio Mumbai</span><span class="danger">${formatMoney(28000, 'INR')}</span></div>
-          <div class="mock-row"><span>Startup Client</span><span class="danger">${formatMoney(17000, 'INR')}</span></div>
+          <div class="mock-row"><span>Brand Studio</span><span class="danger">${formatMoney(2800, 'USD')}</span></div>
+          <div class="mock-row"><span>Startup Client</span><span class="danger">${formatMoney(1700, 'USD')}</span></div>
         </div>
         <div class="mock-reminder">
           <small>Next reminder · WhatsApp</small>
-          <p>"Hi — gentle reminder that INV-2041 for ₹28,000 was due last week..."</p>
+          <p>"Hi — gentle reminder that INV-2041 for ${formatMoney(2800, 'USD')} was due last week..."</p>
           <span class="badge badge-ok">Step 2 of 5</span>
         </div>
       </div>
@@ -317,8 +317,8 @@ function landingHtml(): string {
   <section class="pricing">
     <h2>Simple pricing</h2>
     <div class="price-grid">
-      <div class="price-card"><h3>Starter</h3><p class="price">₹499<span>/mo</span></p><ul><li>25 active invoices</li><li>Email + WhatsApp</li><li>Audit export</li></ul></div>
-      <div class="price-card featured"><h3>Pro</h3><p class="price">₹999<span>/mo</span></p><ul><li>Unlimited invoices</li><li>Auto-scheduling (soon)</li><li>UPI link tracking</li></ul></div>
+      <div class="price-card"><h3>Starter</h3><p class="price">$12<span>/mo</span></p><ul><li>25 active invoices</li><li>Email + WhatsApp</li><li>Audit export</li></ul></div>
+      <div class="price-card featured"><h3>Pro</h3><p class="price">$24<span>/mo</span></p><ul><li>Unlimited invoices</li><li>Auto-scheduling (soon)</li><li>Payment link tracking</li></ul></div>
     </div>
     <p class="pricing-note">14-day trial · Month-to-month · No lock-in contracts</p>
   </section>`;
@@ -435,7 +435,7 @@ function settingsHtml(): string {
       <label>Business name<input name="businessName" value="${escapeHtml(s.businessName)}" required /></label>
       <label>Your name<input name="senderName" value="${escapeHtml(s.senderName)}" required /></label>
       <label>Sender email<input name="senderEmail" type="email" value="${escapeHtml(s.senderEmail)}" required /></label>
-      <label>Currency<select name="currency"><option value="INR" ${s.currency === 'INR' ? 'selected' : ''}>INR (₹)</option><option value="USD" ${s.currency === 'USD' ? 'selected' : ''}>USD ($)</option></select></label>
+      <label>Currency<select name="currency"><option value="USD" ${s.currency === 'USD' ? 'selected' : ''}>USD ($)</option><option value="INR" ${s.currency === 'INR' ? 'selected' : ''}>INR (₹)</option></select></label>
       <button class="btn btn-primary" type="submit">Save settings</button>
     </form>
     <p class="muted demo-note">Send reminders via Email or WhatsApp. Every touch is logged to your audit trail.</p>
@@ -452,9 +452,9 @@ function addModalHtml(): string {
       <form id="add-form">
         <label>Client name<input name="clientName" required /></label>
         <label>Client email<input name="clientEmail" type="email" required /></label>
-        <label>Client WhatsApp / phone<input name="clientPhone" type="tel" placeholder="9876543210" /></label>
+        <label>Client WhatsApp / phone<input name="clientPhone" type="tel" placeholder="+1 555 123 4567" /></label>
         <label>Invoice #<input name="invoiceNumber" value="${escapeHtml(state.pendingInvoiceNumber)}" required /></label>
-        <label>Amount (₹)<input name="amount" type="number" min="1" step="1" required /></label>
+        <label>Amount<input name="amount" type="number" min="1" step="1" required /></label>
         <label>Issued<input name="issuedAt" type="date" value="${today}" required /></label>
         <label>Due<input name="dueAt" type="date" value="${today}" required /></label>
         <label>Payment link (optional)<input name="paymentLink" type="url" placeholder="https://" /></label>

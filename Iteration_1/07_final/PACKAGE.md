@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-**CollectQuiet** is a standalone invoice-reminder SaaS for **Indian freelancers and consultants** who hate chasing late payments. Built from evidence fetched across Indie Hackers, Hacker News, Trustpilot, and Salon Geek — not invented pain.
+**CollectQuiet** is a standalone invoice-reminder SaaS for **freelancers and consultants worldwide** who hate chasing late payments. Built from evidence fetched across Indie Hackers, Hacker News, Trustpilot, and Salon Geek — not invented pain.
 
 **Thesis in one sentence:** People who already earned the money won't chase it because it feels awkward and they're too busy — and existing tools either require full accounting software or cost $49/mo for QuickBooks users only.
 
