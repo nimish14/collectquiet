@@ -2,7 +2,7 @@
 
 **Get paid without the awkward chase.**
 
-Invoice reminder tool for Indian freelancers and consultants. Log an invoice once, send polite → firm follow-ups via **email** or **WhatsApp**, with a full audit trail.
+Invoice reminder tool for freelancers and consultants worldwide. Log an invoice once, send polite → firm follow-ups via **email** or **WhatsApp**, with a full audit trail.
 
 **Live app:** https://collectquiet.vercel.app
 
