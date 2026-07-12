@@ -12,7 +12,7 @@ import {
   updateInvoice,
 } from './lib/db';
 import { escapeHtml } from './lib/escape';
-import { supabase } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 import type { AppSettings, Invoice } from './types';
 import { DEFAULT_SEQUENCE } from './types';
 import {
@@ -208,6 +208,10 @@ async function addInvoice(data: FormData): Promise<void> {
 }
 
 async function handleSignIn(data: FormData): Promise<void> {
+  if (!isSupabaseConfigured) {
+    toast('App is temporarily unavailable. Please try again later.', true);
+    return;
+  }
   const email = String(data.get('email'));
   const password = String(data.get('password'));
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -219,6 +223,10 @@ async function handleSignIn(data: FormData): Promise<void> {
 }
 
 async function handleSignUp(data: FormData): Promise<void> {
+  if (!isSupabaseConfigured) {
+    toast('App is temporarily unavailable. Please try again later.', true);
+    return;
+  }
   const email = String(data.get('email'));
   const password = String(data.get('password'));
   if (password.length < 8) {
@@ -644,6 +652,12 @@ function bindEvents(): void {
 }
 
 async function init(): Promise<void> {
+  if (!isSupabaseConfigured) {
+    state.loading = false;
+    render();
+    return;
+  }
+
   const { data } = await supabase.auth.getSession();
   state.session = data.session;
   state.user = data.session?.user ?? null;
