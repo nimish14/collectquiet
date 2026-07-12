@@ -171,5 +171,7 @@ blockquote cite { font-size: 0.8rem; color: var(--muted); }
 
 @media (max-width: 900px) {
   .hero-grid, .quote-grid, .feature-grid, .dash-grid, .stats { grid-template-columns: 1fr; }
-  .nav-links { display: none; }
+  .topnav { flex-wrap: wrap; gap: 0.5rem; }
+  .nav-links { display: flex; margin-left: 0; order: 3; width: 100%; justify-content: flex-start; }
+  .nav-signin { margin-left: auto; }
 }

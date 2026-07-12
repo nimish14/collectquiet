@@ -89,6 +89,7 @@ function collected(): number {
 
 function requireAuth(view: View): View {
   if (!state.session && ['dashboard', 'sequences', 'settings'].includes(view)) {
+    state.authMode = 'signin';
     state.view = 'auth';
     return 'auth';
   }
@@ -271,6 +272,7 @@ function landingHtml(): string {
         <p class="lead">Client stalling on payment? CollectQuiet sends polite email or WhatsApp reminders — so you stop writing "just checking in on the invoice" at midnight.</p>
         <div class="hero-cta">
           <button class="btn btn-primary" data-nav="auth">Start free</button>
+          <button class="btn btn-ghost" data-nav="auth">Sign in</button>
           <button class="btn btn-ghost" data-scroll="proof">Why freelancers need this</button>
         </div>
         <ul class="hero-points">
@@ -485,11 +487,11 @@ function shell(): string {
       </button>
       <div class="nav-links">
         ${navLink('landing', 'Home')}
-        ${state.session ? navLink('dashboard', 'Dashboard') + navLink('sequences', 'Sequences') + navLink('settings', 'Settings') : ''}
+        ${state.session ? navLink('dashboard', 'Dashboard') + navLink('sequences', 'Sequences') + navLink('settings', 'Settings') : navLink('auth', 'Sign in')}
       </div>
       ${state.session
         ? `<span class="nav-user">${userLabel}</span><button class="btn btn-ghost btn-sm" data-sign-out>Sign out</button>`
-        : `<button class="btn btn-primary btn-sm" data-nav="auth">Sign in</button>`}
+        : `<button class="btn btn-primary btn-sm nav-signin" data-nav="auth">Sign in</button>`}
     </nav>
     <main>${content}</main>
     <footer class="footer"><p>CollectQuiet · Invoice reminders for freelancers · <a href="https://collectquiet.vercel.app">collectquiet.vercel.app</a></p></footer>
