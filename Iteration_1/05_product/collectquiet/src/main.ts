@@ -96,6 +96,11 @@ function requireAuth(view: View): View {
   return view;
 }
 
+function resolveNav(view: View): View {
+  if (view === 'auth' && state.session) return 'dashboard';
+  return requireAuth(view);
+}
+
 async function loadUserData(): Promise<void> {
   if (!state.user) return;
   state.loading = true;
@@ -325,8 +330,10 @@ function landingHtml(): string {
         <h1>You did the work. <em>We'll help you ask for the money.</em></h1>
         <p class="lead">Late invoices stall because the follow-up feels awkward — not because the client forgot. CollectQuiet gives you ready-to-send reminder messages (email or WhatsApp) that escalate from polite to firm, so you stop drafting "just checking in on the invoice" at midnight and start getting paid.</p>
         <div class="hero-cta">
-          <button class="btn btn-primary" data-nav="auth">Start free</button>
-          <button class="btn btn-ghost" data-nav="auth">Sign in</button>
+          ${state.session
+            ? `<button class="btn btn-primary" data-nav="dashboard">Go to dashboard</button>`
+            : `<button class="btn btn-primary" data-nav="auth">Start free</button>
+          <button class="btn btn-ghost" data-nav="auth">Sign in</button>`}
           <button class="btn btn-ghost" data-scroll="reminders">See the messages</button>
           <button class="btn btn-ghost" data-scroll="proof">Why chasing feels awkward</button>
         </div>
@@ -560,7 +567,7 @@ function bindEvents(): void {
   document.querySelectorAll('[data-nav]').forEach((el) => {
     el.addEventListener('click', () => {
       const view = (el as HTMLElement).dataset.nav as View;
-      state.view = requireAuth(view);
+      state.view = resolveNav(view);
       render();
     });
   });
