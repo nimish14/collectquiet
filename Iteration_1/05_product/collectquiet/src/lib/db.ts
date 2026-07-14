@@ -215,6 +215,29 @@ export async function createReminderLog(
   return rowToLog(data as LogRow);
 }
 
+export async function createInvoicesBulk(
+  userId: string,
+  items: Array<Omit<Invoice, 'id' | 'remindersSent' | 'status'>>
+): Promise<{ imported: number; failed: Array<{ invoiceNumber: string; reason: string }> }> {
+  const failed: Array<{ invoiceNumber: string; reason: string }> = [];
+  let imported = 0;
+
+  for (const item of items) {
+    try {
+      await createInvoice(userId, item);
+      imported++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Insert failed';
+      failed.push({
+        invoiceNumber: item.invoiceNumber,
+        reason: msg.includes('duplicate') ? 'Invoice number already exists.' : msg,
+      });
+    }
+  }
+
+  return { imported, failed };
+}
+
 export function exportCsv(invoices: Invoice[], logs: ReminderLog[]): string {
   const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const header = 'invoice_number,client,email,phone,amount,status,due_date,reminders_sent,paid_at\n';

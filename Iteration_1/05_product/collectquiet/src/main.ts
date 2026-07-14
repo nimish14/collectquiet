@@ -2,6 +2,7 @@ import './style.css';
 import type { Session, User } from '@supabase/supabase-js';
 import {
   createInvoice,
+  createInvoicesBulk,
   createReminderLog,
   deleteInvoice,
   exportCsv,
@@ -11,6 +12,7 @@ import {
   saveSettings,
   updateInvoice,
 } from './lib/db';
+import { downloadCsvTemplate, parseInvoiceCsv, type ParsedInvoiceRow } from './lib/csv-import';
 import { escapeHtml } from './lib/escape';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import type { AppSettings, Invoice } from './types';
@@ -39,6 +41,10 @@ interface State {
   settings: AppSettings;
   selectedId: string | null;
   showAddModal: boolean;
+  showImportModal: boolean;
+  importPreview: ParsedInvoiceRow[] | null;
+  importErrors: string[];
+  importInProgress: boolean;
   toast: string | null;
   toastError: boolean;
   pendingInvoiceNumber: string;
@@ -64,6 +70,10 @@ const state: State = {
   },
   selectedId: null,
   showAddModal: false,
+  showImportModal: false,
+  importPreview: null,
+  importErrors: [],
+  importInProgress: false,
   toast: null,
   toastError: false,
   pendingInvoiceNumber: nextInvoiceNumber(),
@@ -120,6 +130,64 @@ async function loadUserData(): Promise<void> {
     state.loading = false;
     render();
   }
+}
+
+function closeModals(): void {
+  state.showAddModal = false;
+  state.showImportModal = false;
+  state.importPreview = null;
+  state.importErrors = [];
+  state.importInProgress = false;
+}
+
+async function handleImportConfirm(): Promise<void> {
+  if (!state.user || !state.importPreview?.length || state.importErrors.length) return;
+  state.importInProgress = true;
+  render();
+  try {
+    const result = await createInvoicesBulk(
+      state.user.id,
+      state.importPreview.map((r) => ({
+        clientName: r.clientName,
+        clientEmail: r.clientEmail,
+        clientPhone: r.clientPhone,
+        amount: r.amount,
+        invoiceNumber: r.invoiceNumber,
+        issuedAt: r.issuedAt,
+        dueAt: r.dueAt,
+        paymentLink: r.paymentLink,
+        notes: r.notes,
+      }))
+    );
+    closeModals();
+    if (result.failed.length) {
+      toast(
+        `Imported ${result.imported}. ${result.failed.length} failed.`,
+        result.imported === 0
+      );
+    } else {
+      toast(`Imported ${result.imported} invoice${result.imported === 1 ? '' : 's'}.`);
+    }
+    await loadUserData();
+  } catch (err) {
+    state.importInProgress = false;
+    toast(err instanceof Error ? err.message : 'Import failed', true);
+    render();
+  }
+}
+
+function handleImportFile(file: File): void {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = String(reader.result ?? '');
+    const existing = new Set(state.invoices.map((i) => i.invoiceNumber));
+    const { rows, errors } = parseInvoiceCsv(text, existing);
+    state.importPreview = rows.length ? rows : null;
+    state.importErrors = errors;
+    render();
+  };
+  reader.onerror = () => toast('Could not read file.', true);
+  reader.readAsText(file);
 }
 
 async function sendReminder(invoice: Invoice, channel: 'email' | 'whatsapp'): Promise<void> {
@@ -448,7 +516,10 @@ function dashboardHtml(): string {
   <div class="dash">
     <header class="dash-head">
       <div><h1>Dashboard</h1><p>Track outstanding invoices and reminder progress.</p></div>
-      <button class="btn btn-primary" data-add-invoice>+ Add invoice</button>
+      <div class="dash-actions">
+        <button class="btn btn-ghost" data-import-csv>Import CSV</button>
+        <button class="btn btn-primary" data-add-invoice>+ Add invoice</button>
+      </div>
     </header>
     <div class="stats">
       <div class="stat"><span>Outstanding</span><strong>${formatMoney(outstanding(), state.settings.currency, state.settings.locale)}</strong></div>
@@ -497,6 +568,55 @@ function settingsHtml(): string {
       <button class="btn btn-primary" type="submit">Save settings</button>
     </form>
     <p class="muted demo-note">Send reminders via Email or WhatsApp. Every touch is logged to your audit trail.</p>
+  </div>`;
+}
+
+function importModalHtml(): string {
+  if (!state.showImportModal) return '';
+  const previewRows = state.importPreview ?? [];
+  const hasPreview = previewRows.length > 0 && state.importErrors.length === 0;
+
+  const errorBlock = state.importErrors.length
+    ? `<div class="import-errors"><p><strong>Fix these before importing:</strong></p><ul>${state.importErrors.map((e) => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>`
+    : '';
+
+  const previewBlock = hasPreview
+    ? `<div class="import-preview">
+        <p><strong>${previewRows.length} invoice${previewRows.length === 1 ? '' : 's'} ready to import</strong></p>
+        <div class="import-table-wrap">
+          <table class="import-table">
+            <thead><tr><th>Client</th><th>Invoice #</th><th>Amount</th><th>Due</th></tr></thead>
+            <tbody>${previewRows.slice(0, 8).map((r) => `
+              <tr>
+                <td>${escapeHtml(r.clientName)}</td>
+                <td>${escapeHtml(r.invoiceNumber)}</td>
+                <td>${formatMoney(r.amount, state.settings.currency, state.settings.locale)}</td>
+                <td>${escapeHtml(formatDate(r.dueAt))}</td>
+              </tr>`).join('')}
+              ${previewRows.length > 8 ? `<tr><td colspan="4" class="muted">…and ${previewRows.length - 8} more</td></tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+      </div>`
+    : '';
+
+  return `
+  <div class="modal-backdrop" data-close-modal>
+    <div class="modal modal-lg" role="dialog" data-modal-inner>
+      <h2>Import invoices from CSV</h2>
+      <p class="muted import-lead">Bulk upload for agencies and businesses with many clients. Solo freelancers can keep using <strong>+ Add invoice</strong>.</p>
+      <p class="muted import-lead">Dates use <code>YYYY-MM-DD</code>. Phone numbers accept any country format (e.g. +1, +44, +91).</p>
+      <div class="import-hints">
+        <button type="button" class="btn btn-sm btn-ghost" data-download-template>Download template</button>
+      </div>
+      ${!hasPreview ? `<label class="import-file-label">Choose CSV file<input type="file" accept=".csv,text/csv" data-import-file /></label>` : ''}
+      ${errorBlock}
+      ${previewBlock}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+        ${hasPreview ? `<button type="button" class="btn btn-primary" data-confirm-import ${state.importInProgress ? 'disabled' : ''}>Import ${previewRows.length} invoice${previewRows.length === 1 ? '' : 's'}</button>` : ''}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -554,6 +674,7 @@ function shell(): string {
     <main>${content}</main>
     <footer class="footer"><p>CollectQuiet · Invoice reminders for freelancers · <a href="https://collectquiet.vercel.app">collectquiet.vercel.app</a></p></footer>
     ${addModalHtml()}
+    ${importModalHtml()}
     ${state.toast ? `<div class="toast ${state.toastError ? 'toast-error' : ''}">${escapeHtml(state.toast)}</div>` : ''}
   </div>`;
 }
@@ -597,11 +718,36 @@ function bindEvents(): void {
     render();
   });
 
-  document.querySelector('[data-modal-inner]')?.addEventListener('click', (e) => e.stopPropagation());
+  document.querySelector('[data-import-csv]')?.addEventListener('click', () => {
+    state.showImportModal = true;
+    state.importPreview = null;
+    state.importErrors = [];
+    render();
+  });
+
+  document.querySelector('[data-download-template]')?.addEventListener('click', () => {
+    downloadCsvTemplate();
+    toast('Template downloaded.');
+  });
+
+  document.querySelector('[data-import-file]')?.addEventListener('change', (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) handleImportFile(file);
+    input.value = '';
+  });
+
+  document.querySelector('[data-confirm-import]')?.addEventListener('click', () => {
+    void handleImportConfirm();
+  });
+
+  document.querySelectorAll('[data-modal-inner]').forEach((el) => {
+    el.addEventListener('click', (e) => e.stopPropagation());
+  });
 
   document.querySelectorAll('[data-close-modal]').forEach((el) => {
     el.addEventListener('click', () => {
-      state.showAddModal = false;
+      closeModals();
       render();
     });
   });

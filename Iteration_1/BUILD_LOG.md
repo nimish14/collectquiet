@@ -108,3 +108,21 @@ HeyGen API call blocked (credential outbound). Shipped `06_video/launch_video.ht
 
 **Auth note:** Add `https://collectquiet.vercel.app` to Supabase Auth → URL Configuration (Site URL + redirect allowlist) for password-reset emails to return to the app.
 
+## 2026-07-14 — CSV bulk import + v2 production deploy
+
+**User request:** Add CSV bulk import for businesses/agencies; keep solo freelancer `+ Add invoice` flow unchanged; global (not India-only); deploy to prod; tag v1 for rollback; log on GitHub.
+
+**Q: Separate product or add-on feature?** A: Optional dashboard feature — `Import CSV` beside `+ Add invoice`. Why: business owners with 100+ clients need bulk upload; freelancers keep one-at-a-time flow.
+
+**Shipped:**
+- `src/lib/csv-import.ts` — parser, template download, flexible column aliases, up to 500 rows
+- `createInvoicesBulk()` in `db.ts`
+- Dashboard import modal: template → upload → validate → preview → confirm
+- Global template examples (+1 US, +44 UK); dates `YYYY-MM-DD`; currency from Settings only
+- Git tag **v1** → commit `b6770d9` (pre-CSV production)
+- Git tag **v2** → this release (CSV import)
+
+**Rollback:** Redeploy git tag `v1` in Vercel, or `git checkout v1` and redeploy.
+
+**Live URL:** https://collectquiet.vercel.app
+
