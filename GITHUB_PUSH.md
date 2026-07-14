@@ -4,8 +4,20 @@
 **Repo name:** `collectquiet`  
 **Local path:** `C:\Users\pande\Desktop\Run`
 
-GitHub CLI is installed at `C:\Program Files\GitHub CLI\gh.exe` (not on PATH).  
-You are **not logged in** yet — complete Step 1 below in your own PowerShell window.
+GitHub CLI: `C:\Program Files\GitHub CLI\gh.exe`  
+**Remote configured:** `origin` → https://github.com/nimish14/collectquiet.git
+
+---
+
+## Current release state (2026-07-14)
+
+| Tag | Commit | What's in it |
+|-----|--------|--------------|
+| **v1** | `b6770d9` | Pre-CSV production — rollback here if you dislike v2 |
+| **v2** | `5f1207d` | CSV bulk import + **live prod** at https://collectquiet.vercel.app |
+
+**Vercel prod deployment (v2):** `dpl_7BLrAUoxYe8VMjKYFkytuRdhiWW5`  
+Rollback in Vercel: Deployments → previous deployment → **Promote to Production**, or redeploy git tag `v1`.
 
 ---
 
@@ -17,16 +29,9 @@ Open **PowerShell** and run:
 & "C:\Program Files\GitHub CLI\gh.exe" auth login --hostname github.com --git-protocol https --skip-ssh-key
 ```
 
-It will print something like:
-
-```
-! First copy your one-time code: XXXX-XXXX
-Open this URL to continue in your web browser: https://github.com/login/device
-```
-
-1. Copy the code (e.g. `ACC8-803A`)
-2. Open https://github.com/login/device in any browser
-3. Paste the code → **Authorize** GitHub CLI
+1. Copy the one-time code (e.g. `XXXX-XXXX`)
+2. Open https://github.com/login/device
+3. Paste code → **Authorize** GitHub CLI
 
 Verify:
 
@@ -36,14 +41,29 @@ Verify:
 
 ---
 
-## Step 2 — Create repo & push (~30 sec)
+## Step 2 — Create repo & push all history + tags (~30 sec)
 
 ```powershell
 cd C:\Users\pande\Desktop\Run
 & "C:\Program Files\GitHub CLI\gh.exe" repo create collectquiet --public --source=. --remote=origin --push
+git push origin --tags
+```
+
+If the repo already exists:
+
+```powershell
+cd C:\Users\pande\Desktop\Run
+git push -u origin main --tags
 ```
 
 **Done.** Repo URL: https://github.com/nimish14/collectquiet
+
+Optional — create GitHub Releases from tags:
+
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" release create v1 --title "v1 — Freelancer app (no CSV)" --notes "Rollback baseline. Individual + Add invoice flow only."
+& "C:\Program Files\GitHub CLI\gh.exe" release create v2 --title "v2 — CSV bulk import" --notes "Import CSV for agencies. Solo freelancer flow unchanged."
+```
 
 ---
 
