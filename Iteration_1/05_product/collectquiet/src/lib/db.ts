@@ -238,6 +238,28 @@ export async function createInvoicesBulk(
   return { imported, failed };
 }
 
+export type FeedbackCategory = 'bug' | 'feature' | 'other';
+
+export async function submitFeedback(input: {
+  userId?: string | null;
+  email?: string;
+  category: FeedbackCategory;
+  message: string;
+  page: string;
+}): Promise<void> {
+  const message = input.message.trim();
+  if (!message) throw new Error('Message is required.');
+
+  const { error } = await supabase.from('cq_feedback').insert({
+    user_id: input.userId ?? null,
+    email: input.email?.trim() || null,
+    category: input.category,
+    message,
+    page: input.page,
+  });
+  if (error) throw error;
+}
+
 export function exportCsv(invoices: Invoice[], logs: ReminderLog[]): string {
   const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const header = 'invoice_number,client,email,phone,amount,status,due_date,reminders_sent,paid_at\n';

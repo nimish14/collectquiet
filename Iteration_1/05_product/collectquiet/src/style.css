@@ -169,7 +169,8 @@ blockquote cite { font-size: 0.8rem; color: var(--muted); }
 
 .settings-form { display: grid; gap: 1rem; max-width: 420px; margin-top: 1.5rem; }
 .settings-form label { display: grid; gap: 0.35rem; font-weight: 600; font-size: 0.9rem; }
-.settings-form input { padding: 0.65rem 0.85rem; border-radius: 10px; border: 1px solid var(--border); font: inherit; }
+.settings-form input, .settings-form select, .settings-form textarea { padding: 0.65rem 0.85rem; border-radius: 10px; border: 1px solid var(--border); font: inherit; }
+.settings-form textarea { resize: vertical; min-height: 6rem; }
 .demo-note { margin-top: 1.5rem; padding: 1rem; background: var(--accent-soft); border-radius: var(--radius); }
 
 .modal-backdrop {
@@ -179,6 +180,10 @@ blockquote cite { font-size: 0.8rem; color: var(--muted); }
 .modal { background: var(--surface); padding: 1.5rem; border-radius: var(--radius); width: min(440px, 92vw); box-shadow: var(--shadow); }
 .modal-lg { width: min(640px, 94vw); }
 .modal form { display: grid; gap: 0.75rem; margin-top: 1rem; }
+.modal form label { display: grid; gap: 0.35rem; font-weight: 600; font-size: 0.9rem; }
+.modal form input, .modal form select, .modal form textarea { padding: 0.65rem 0.85rem; border-radius: 10px; border: 1px solid var(--border); font: inherit; }
+.modal form textarea { resize: vertical; min-height: 6rem; }
+.feedback-lead { margin: 0.35rem 0 0; font-size: 0.9rem; }
 .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
 .import-lead { margin: 0.5rem 0 0; font-size: 0.9rem; }
 .import-hints { margin: 1rem 0 0.75rem; }
@@ -205,6 +210,7 @@ blockquote cite { font-size: 0.8rem; color: var(--muted); }
 .inv-table .muted { text-align: center; padding: 2rem; }
 
 .footer { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); }
+.footer .link-btn { font-size: inherit; color: var(--brand-light); }
 
 @media (max-width: 900px) {
   .hero-grid, .quote-grid, .feature-grid, .dash-grid, .stats, .showcase-grid { grid-template-columns: 1fr; }

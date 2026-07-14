@@ -10,6 +10,7 @@ import {
   fetchLogs,
   fetchSettings,
   saveSettings,
+  submitFeedback,
   updateInvoice,
 } from './lib/db';
 import { downloadCsvTemplate, parseInvoiceCsv, type ParsedInvoiceRow } from './lib/csv-import';
@@ -42,6 +43,8 @@ interface State {
   selectedId: string | null;
   showAddModal: boolean;
   showImportModal: boolean;
+  showFeedbackModal: boolean;
+  feedbackSubmitting: boolean;
   importPreview: ParsedInvoiceRow[] | null;
   importErrors: string[];
   importInProgress: boolean;
@@ -71,6 +74,8 @@ const state: State = {
   selectedId: null,
   showAddModal: false,
   showImportModal: false,
+  showFeedbackModal: false,
+  feedbackSubmitting: false,
   importPreview: null,
   importErrors: [],
   importInProgress: false,
@@ -135,6 +140,8 @@ async function loadUserData(): Promise<void> {
 function closeModals(): void {
   state.showAddModal = false;
   state.showImportModal = false;
+  state.showFeedbackModal = false;
+  state.feedbackSubmitting = false;
   state.importPreview = null;
   state.importErrors = [];
   state.importInProgress = false;
@@ -317,6 +324,42 @@ async function handleResetPassword(email: string): Promise<void> {
   });
   if (error) toast(error.message, true);
   else toast('Password reset link sent to your email.');
+}
+
+async function handleFeedbackSubmit(data: FormData): Promise<void> {
+  if (!isSupabaseConfigured) {
+    toast('App is temporarily unavailable. Please try again later.', true);
+    return;
+  }
+  const message = String(data.get('message') ?? '').trim();
+  if (!message) {
+    toast('Please enter your feedback.', true);
+    return;
+  }
+  const category = String(data.get('category') ?? 'other');
+  const email = state.user?.email ?? String(data.get('email') ?? '').trim();
+  if (!state.user && !email) {
+    toast('Enter your email so we can follow up.', true);
+    return;
+  }
+
+  state.feedbackSubmitting = true;
+  render();
+  try {
+    await submitFeedback({
+      userId: state.user?.id ?? null,
+      email: email || undefined,
+      category: category === 'bug' || category === 'feature' ? category : 'other',
+      message,
+      page: state.view,
+    });
+    closeModals();
+    toast('Thanks — we got your feedback.');
+  } catch (err) {
+    state.feedbackSubmitting = false;
+    toast(err instanceof Error ? err.message : 'Could not send feedback', true);
+    render();
+  }
 }
 
 async function handleSignOut(): Promise<void> {
@@ -620,6 +663,33 @@ function importModalHtml(): string {
   </div>`;
 }
 
+function feedbackModalHtml(): string {
+  if (!state.showFeedbackModal) return '';
+  const signedIn = Boolean(state.user);
+  return `
+  <div class="modal-backdrop" data-close-modal>
+    <div class="modal" role="dialog" data-modal-inner>
+      <h2>Send feedback</h2>
+      <p class="muted feedback-lead">Bug reports, feature ideas, or anything else — we read every message.</p>
+      <form id="feedback-form">
+        <label>Category
+          <select name="category">
+            <option value="bug">Bug report</option>
+            <option value="feature">Feature request</option>
+            <option value="other" selected>Other</option>
+          </select>
+        </label>
+        ${signedIn ? '' : '<label>Your email<input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>'}
+        <label>Message<textarea name="message" rows="5" required placeholder="Tell us what happened or what you'd like to see…"></textarea></label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+          <button type="submit" class="btn btn-primary" ${state.feedbackSubmitting ? 'disabled' : ''}>${state.feedbackSubmitting ? 'Sending…' : 'Submit'}</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
 function addModalHtml(): string {
   if (!state.showAddModal) return '';
   const today = new Date().toISOString().slice(0, 10);
@@ -672,9 +742,10 @@ function shell(): string {
         : `<button class="btn btn-primary btn-sm nav-signin" data-nav="auth">Sign in</button>`}
     </nav>
     <main>${content}</main>
-    <footer class="footer"><p>CollectQuiet · Invoice reminders for freelancers · <a href="https://collectquiet.vercel.app">collectquiet.vercel.app</a></p></footer>
+    <footer class="footer"><p>CollectQuiet · Invoice reminders for freelancers · <a href="https://collectquiet.vercel.app">collectquiet.vercel.app</a> · <button class="link-btn" data-open-feedback>Send feedback</button></p></footer>
     ${addModalHtml()}
     ${importModalHtml()}
+    ${feedbackModalHtml()}
     ${state.toast ? `<div class="toast ${state.toastError ? 'toast-error' : ''}">${escapeHtml(state.toast)}</div>` : ''}
   </div>`;
 }
@@ -716,6 +787,16 @@ function bindEvents(): void {
   document.querySelector('[data-add-invoice]')?.addEventListener('click', () => {
     state.showAddModal = true;
     render();
+  });
+
+  document.querySelector('[data-open-feedback]')?.addEventListener('click', () => {
+    state.showFeedbackModal = true;
+    render();
+  });
+
+  document.getElementById('feedback-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void handleFeedbackSubmit(new FormData(e.target as HTMLFormElement));
   });
 
   document.querySelector('[data-import-csv]')?.addEventListener('click', () => {
