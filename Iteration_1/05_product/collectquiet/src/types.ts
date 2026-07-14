@@ -49,49 +49,49 @@ export const DEFAULT_SEQUENCE: ReminderStep[] = [
   {
     id: 'r1',
     dayOffset: 1,
-    label: 'Day +1 · Gentle nudge',
+    label: 'Step 1 · Soft check-in',
     tone: 'friendly',
-    subject: 'Quick reminder — Invoice {{invoice_number}}',
+    subject: 'Re: Invoice {{invoice_number}} — quick check-in',
     body: `Hi {{client_name}},
 
-Hope you're doing well. This is a gentle reminder that invoice {{invoice_number}} for {{amount}} was due on {{due_date}}.
+Hope your week's going well. Wanted to bump invoice {{invoice_number}} ({{amount}}) — it was due {{due_date}}.
 
-If you've already sent payment, please ignore this message — thank you!
+If it's already in process, ignore this — just let me know either way so I can update my records.
 
 {{payment_link}}
 
-Best,
+Thanks,
 {{sender_name}}
 {{business_name}}`,
   },
   {
     id: 'r2',
     dayOffset: 7,
-    label: 'Day +7 · Friendly follow-up',
+    label: 'Step 2 · Friendly follow-up',
     tone: 'friendly',
-    subject: 'Following up on Invoice {{invoice_number}}',
+    subject: 'Following up — Invoice {{invoice_number}}',
     body: `Hi {{client_name}},
 
-Wanted to follow up on invoice {{invoice_number}} ({{amount}}), now a week past due.
+Circling back on invoice {{invoice_number}} for {{amount}}, about a week past due on my end.
 
-Could you let me know when I can expect payment? Happy to resend the invoice if needed.
+When do you expect this to go out? Happy to resend the invoice or work out partial payment if that helps.
 
 {{payment_link}}
 
-Thanks,
+Best,
 {{sender_name}}`,
   },
   {
     id: 'r3',
     dayOffset: 14,
-    label: 'Day +14 · Direct',
+    label: 'Step 3 · Clear ask',
     tone: 'direct',
-    subject: 'Payment needed — Invoice {{invoice_number}}',
+    subject: 'Invoice {{invoice_number}} — still outstanding',
     body: `Hi {{client_name}},
 
-Invoice {{invoice_number}} for {{amount}} is now 14 days overdue per our terms.
+Invoice {{invoice_number}} ({{amount}}) is now two weeks overdue.
 
-Please arrange payment this week or reply if there's an issue we should know about.
+Can you confirm a payment date this week? If something's wrong with the invoice, tell me and I'll fix it — otherwise I need to get this closed out.
 
 {{payment_link}}
 
@@ -102,32 +102,33 @@ Regards,
   {
     id: 'r4',
     dayOffset: 21,
-    label: 'Day +21 · Work pause warning',
+    label: 'Step 4 · Work pause',
     tone: 'firm',
-    subject: 'Action required — Invoice {{invoice_number}} overdue',
+    subject: 'Pausing work until Invoice {{invoice_number}} is settled',
     body: `Hi {{client_name}},
 
-Invoice {{invoice_number}} ({{amount}}) remains unpaid after multiple reminders.
+I've followed up a few times on invoice {{invoice_number}} ({{amount}}) and haven't received payment or a confirmed date.
 
-Per our agreement, I will pause any active work until this balance is cleared.
-
-Please confirm payment date within 3 business days.
+I'll need to pause any new work until this balance is cleared. Please reply with when payment will be sent.
 
 {{payment_link}}
 
-{{sender_name}}`,
+{{sender_name}}
+{{business_name}}`,
   },
   {
     id: 'r5',
     dayOffset: 30,
-    label: 'Day +30 · Final notice',
+    label: 'Step 5 · Final reminder',
     tone: 'final',
-    subject: 'Final notice — Invoice {{invoice_number}}',
+    subject: 'Final reminder — Invoice {{invoice_number}}',
     body: `Hi {{client_name}},
 
-This is a final notice for invoice {{invoice_number}}: {{amount}}, now 30+ days overdue.
+Final reminder for invoice {{invoice_number}}: {{amount}}, now 30+ days past due.
 
-If payment is not received by {{final_deadline}}, I will suspend services and consider further collection options. A log of all reminder correspondence is on file.
+Please send payment by {{final_deadline}}. I keep a log of all reminders on file.
+
+If you've already paid, reply with the transfer date and I'll close this immediately.
 
 {{payment_link}}
 
@@ -135,4 +136,3 @@ If payment is not received by {{final_deadline}}, I will suspend services and co
 {{business_name}}`,
   },
 ];
-

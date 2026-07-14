@@ -270,23 +270,70 @@ function statusBadge(status: Invoice['status']): string {
   return `<span class="${map[status]}">${labels[status]}</span>`;
 }
 
+const LANDING_DEMO_SETTINGS: AppSettings = {
+  businessName: 'Northline Studio',
+  senderName: 'Jordan',
+  senderEmail: 'jordan@example.com',
+  currency: 'USD',
+  locale: 'en-US',
+  sequence: DEFAULT_SEQUENCE,
+};
+
+const LANDING_DEMO_INVOICE = {
+  clientName: 'Alex at Brand Studio',
+  invoiceNumber: 'INV-2041',
+  amount: 2800,
+  dueAt: '2026-06-15',
+  paymentLink: undefined as string | undefined,
+};
+
+function landingReminderShowcase(): string {
+  const showcaseSteps = [0, 1, 4];
+  const cards = showcaseSteps
+    .map((idx) => {
+      const step = DEFAULT_SEQUENCE[idx];
+      const { subject, body } = renderTemplate(step, LANDING_DEMO_INVOICE, LANDING_DEMO_SETTINGS);
+      return `
+      <article class="showcase-card tone-${escapeHtml(step.tone)}">
+        <header>
+          <span class="badge badge-neutral">${escapeHtml(step.label)}</span>
+          <span class="tone-tag">${escapeHtml(step.tone)}</span>
+        </header>
+        <p class="showcase-subject">${escapeHtml(subject)}</p>
+        <pre class="showcase-body">${escapeHtml(body)}</pre>
+      </article>`;
+    })
+    .join('');
+
+  return `
+  <section class="reminders-showcase" id="reminders">
+    <h2>The awkward message — already written for you</h2>
+    <p class="lead">You don't have to stare at a blank screen at midnight. CollectQuiet gives you five ready-to-send reminders that sound like a professional, not a collections agency.</p>
+    <div class="showcase-grid">${cards}</div>
+    <p class="showcase-note">Steps 3–5 escalate tone automatically. You send via email or WhatsApp — we fill in client name, amount, and invoice #.</p>
+  </section>`;
+}
+
 function landingHtml(): string {
+  const heroPreview = renderTemplate(DEFAULT_SEQUENCE[1], LANDING_DEMO_INVOICE, LANDING_DEMO_SETTINGS);
+
   return `
   <section class="hero">
     <div class="hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">For freelancers & consultants</p>
-        <h1>Get paid without the <em>awkward</em> chase.</h1>
-        <p class="lead">Client stalling on payment? CollectQuiet sends polite email or WhatsApp reminders — so you stop writing "just checking in on the invoice" at midnight.</p>
+        <p class="eyebrow">For freelancers, consultants & small studios</p>
+        <h1>You did the work. <em>We'll help you ask for the money.</em></h1>
+        <p class="lead">Late invoices stall because the follow-up feels awkward — not because the client forgot. CollectQuiet gives you ready-to-send reminder messages (email or WhatsApp) that escalate from polite to firm, so you stop drafting "just checking in on the invoice" at midnight and start getting paid.</p>
         <div class="hero-cta">
           <button class="btn btn-primary" data-nav="auth">Start free</button>
           <button class="btn btn-ghost" data-nav="auth">Sign in</button>
-          <button class="btn btn-ghost" data-scroll="proof">Why freelancers need this</button>
+          <button class="btn btn-ghost" data-scroll="reminders">See the messages</button>
+          <button class="btn btn-ghost" data-scroll="proof">Why chasing feels awkward</button>
         </div>
         <ul class="hero-points">
-          <li>Built for designers, devs, writers, consultants</li>
-          <li>Email + WhatsApp reminder sequences</li>
-          <li>Full audit trail — no accounting software needed</li>
+          <li>Pre-written chase messages — friendly to final notice</li>
+          <li>Send via email or WhatsApp in one click</li>
+          <li>Track every reminder so money doesn't slip through</li>
         </ul>
       </div>
       <div class="hero-card">
@@ -299,13 +346,15 @@ function landingHtml(): string {
           <div class="mock-row"><span>Startup Client</span><span class="danger">${formatMoney(1700, 'USD')}</span></div>
         </div>
         <div class="mock-reminder">
-          <small>Next reminder · WhatsApp</small>
-          <p>"Hi — gentle reminder that INV-2041 for ${formatMoney(2800, 'USD')} was due last week..."</p>
-          <span class="badge badge-ok">Step 2 of 5</span>
+          <small>Next reminder · Step 2 · WhatsApp</small>
+          <p class="mock-reminder-subject">${escapeHtml(heroPreview.subject)}</p>
+          <pre class="mock-reminder-body">${escapeHtml(heroPreview.body)}</pre>
+          <span class="badge badge-ok">Sounds professional — not desperate</span>
         </div>
       </div>
     </div>
   </section>
+  ${landingReminderShowcase()}
   <section class="proof" id="proof">
     <h2>Real people. Real pain. Fetched from the open web.</h2>
     <div class="quote-grid">
@@ -318,17 +367,9 @@ function landingHtml(): string {
     <h2>How CollectQuiet works</h2>
     <div class="feature-grid">
       <article><span class="step">1</span><h3>Log the invoice once</h3><p>Client, amount, due date. No QuickBooks required.</p></article>
-      <article><span class="step">2</span><h3>Send the chase</h3><p>Five-step sequence from friendly nudge to final notice.</p></article>
+      <article><span class="step">2</span><h3>Send the chase</h3><p>Pick email or WhatsApp. The message is written — you just hit send.</p></article>
       <article><span class="step">3</span><h3>Stop when you're paid</h3><p>Mark paid in one click. Export the audit log anytime.</p></article>
     </div>
-  </section>
-  <section class="pricing">
-    <h2>Simple pricing</h2>
-    <div class="price-grid">
-      <div class="price-card"><h3>Starter</h3><p class="price">$12<span>/mo</span></p><ul><li>25 active invoices</li><li>Email + WhatsApp</li><li>Audit export</li></ul></div>
-      <div class="price-card featured"><h3>Pro</h3><p class="price">$24<span>/mo</span></p><ul><li>Unlimited invoices</li><li>Auto-scheduling (soon)</li><li>Payment link tracking</li></ul></div>
-    </div>
-    <p class="pricing-note">14-day trial · Month-to-month · No lock-in contracts</p>
   </section>`;
 }
 
@@ -382,12 +423,14 @@ function dashboardHtml(): string {
       previewBlock = '<p class="muted">Reminder sequence complete for this invoice.</p>';
     } else {
       const preview = renderTemplate(state.settings.sequence[selected.remindersSent], selected, state.settings);
+      const step = state.settings.sequence[selected.remindersSent];
       previewBlock = `
-        <p class="preview-meta">Next for <strong>${escapeHtml(selected.clientName)}</strong></p>
+        <p class="preview-meta">Next for <strong>${escapeHtml(selected.clientName)}</strong> · <span class="badge badge-neutral">${escapeHtml(step.label)}</span></p>
         <div class="email-preview">
           <div class="email-subject">Subject: ${escapeHtml(preview.subject)}</div>
           <pre>${escapeHtml(preview.body)}</pre>
         </div>
+        <p class="muted preview-hint">Review, then send via Email or WhatsApp from the table.</p>
         <div class="preview-actions">
           <button class="btn btn-sm" data-copy-preview>Copy text</button>
         </div>`;
@@ -425,13 +468,13 @@ function sequencesHtml(): string {
       (s) => `
     <article class="seq-card tone-${escapeHtml(s.tone)}">
       <header><span class="badge badge-neutral">${escapeHtml(s.label)}</span><span class="tone-tag">${escapeHtml(s.tone)}</span></header>
-      <h4>${escapeHtml(s.subject.replace(/\{\{invoice_number\}\}/g, 'CQ-1042'))}</h4>
-      <pre>${escapeHtml(s.body.slice(0, 220))}...</pre>
+      <h4>${escapeHtml(s.subject.replace(/\{\{invoice_number\}\}/g, 'INV-2041'))}</h4>
+      <pre>${escapeHtml(s.body)}</pre>
     </article>`
     )
     .join('');
 
-  return `<div class="page"><h1>Reminder sequences</h1><p class="lead">Five escalating touches — friendly to final notice.</p><div class="seq-grid">${cards}</div><button class="btn btn-ghost" data-reset-seq>Reset to defaults</button></div>`;
+  return `<div class="page"><h1>Your reminder messages</h1><p class="lead">Five messages that escalate from a soft check-in to a final reminder — professional tone, no desperate midnight drafts.</p><div class="seq-grid">${cards}</div><button class="btn btn-ghost" data-reset-seq>Reset to defaults</button></div>`;
 }
 
 function settingsHtml(): string {
@@ -495,7 +538,7 @@ function shell(): string {
       </button>
       <div class="nav-links">
         ${navLink('landing', 'Home')}
-        ${state.session ? navLink('dashboard', 'Dashboard') + navLink('sequences', 'Sequences') + navLink('settings', 'Settings') : navLink('auth', 'Sign in')}
+        ${state.session ? navLink('dashboard', 'Dashboard') + navLink('sequences', 'Messages') + navLink('settings', 'Settings') : navLink('auth', 'Sign in')}
       </div>
       ${state.session
         ? `<span class="nav-user">${userLabel}</span><button class="btn btn-ghost btn-sm" data-sign-out>Sign out</button>`
@@ -522,8 +565,11 @@ function bindEvents(): void {
     });
   });
 
-  document.querySelector('[data-scroll="proof"]')?.addEventListener('click', () => {
-    document.getElementById('proof')?.scrollIntoView({ behavior: 'smooth' });
+  document.querySelectorAll('[data-scroll]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = (el as HTMLElement).dataset.scroll;
+      if (id) document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    });
   });
 
   document.querySelector('[data-sign-out]')?.addEventListener('click', () => void handleSignOut());
