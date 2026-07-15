@@ -45,7 +45,7 @@ export interface AppSettings {
   sequence: ReminderStep[];
 }
 
-/** Short, early, matter-of-fact — validated with freelancers who said apologetic copy creates awkwardness. */
+/** Default reminder copy: short, direct, no apology fluff. */
 export const DEFAULT_SEQUENCE: ReminderStep[] = [
   {
     id: 'r1',
@@ -59,7 +59,7 @@ Invoice {{invoice_number}} for {{amount}} was due {{due_date}}.
 
 {{payment_link}}
 
-Please confirm once it's sent.
+Let me know when it goes out.
 
 {{sender_name}}
 {{business_name}}`,
@@ -72,7 +72,7 @@ Please confirm once it's sent.
     subject: 'Following up on invoice {{invoice_number}}',
     body: `Hi {{client_name}},
 
-Following up on invoice {{invoice_number}} for {{amount}} (due {{due_date}}). Let me know if you need anything from my end.
+Following up on invoice {{invoice_number}} for {{amount}} (due {{due_date}}). Shout if you need the invoice resent.
 
 {{payment_link}}
 
@@ -84,12 +84,12 @@ Following up on invoice {{invoice_number}} for {{amount}} (due {{due_date}}). Le
     dayOffset: 14,
     label: 'Step 3 · Clear ask',
     tone: 'firm',
-    subject: 'Invoice {{invoice_number}} — payment needed this week',
+    subject: 'Invoice {{invoice_number}}: payment needed this week',
     body: `Hi {{client_name}},
 
-Invoice {{invoice_number}} ({{amount}}) is now two weeks overdue.
+Invoice {{invoice_number}} for {{amount}} is two weeks past due.
 
-Please confirm a payment date this week so I can close this out.
+Can you confirm when you'll send it this week?
 
 {{payment_link}}
 
@@ -104,9 +104,9 @@ Please confirm a payment date this week so I can close this out.
     subject: 'Pausing work until invoice {{invoice_number}} is paid',
     body: `Hi {{client_name}},
 
-I still have not received payment for invoice {{invoice_number}} ({{amount}}).
+I still haven't received payment for invoice {{invoice_number}} ({{amount}}).
 
-I am pausing further work / final deliverables until this is settled. Reply with a payment date if you want to continue.
+I'm pausing new work until this is cleared. Reply with a date if you want to keep going.
 
 {{payment_link}}
 
@@ -118,14 +118,12 @@ I am pausing further work / final deliverables until this is settled. Reply with
     dayOffset: 30,
     label: 'Step 5 · Final notice',
     tone: 'final',
-    subject: 'Final notice — invoice {{invoice_number}}',
+    subject: 'Final notice: invoice {{invoice_number}}',
     body: `Hi {{client_name}},
 
-Final notice for invoice {{invoice_number}}: {{amount}}, now 30+ days past due.
+Last follow up on invoice {{invoice_number}} for {{amount}}. It's 30+ days overdue.
 
-Please send payment by {{final_deadline}}. I keep a record of all follow-ups.
-
-If you already paid, reply with the transfer date and I will close this.
+Please pay by {{final_deadline}}. If you already sent it, reply with the date.
 
 {{payment_link}}
 

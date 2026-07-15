@@ -237,7 +237,7 @@ async function sendReminder(invoice: Invoice, channel: 'email' | 'whatsapp'): Pr
       stepId: step.id,
       subject,
       body,
-      preview: `${subject} — ${body.slice(0, 120)}...`,
+      preview: `${subject}: ${body.slice(0, 120)}...`,
       deliveryStatus: channel === 'whatsapp' ? 'sent' : 'mailto',
     });
     await updateInvoice(state.user.id, invoice.id, { remindersSent: invoice.remindersSent + 1 });
@@ -267,7 +267,7 @@ async function markPaid(id: string): Promise<void> {
       status: 'paid',
       paidAt: new Date().toISOString().slice(0, 10),
     });
-    toast('Invoice marked paid — reminders stopped.');
+    toast('Invoice marked paid. Reminders stopped.');
     await loadUserData();
   } catch (err) {
     toast(err instanceof Error ? err.message : 'Failed to update invoice', true);
@@ -370,7 +370,7 @@ async function handleFeedbackSubmit(data: FormData): Promise<void> {
       page: state.view,
     });
     closeModals();
-    toast('Thanks — we got your feedback.');
+    toast('Thanks. Got your feedback.');
   } catch (err) {
     state.feedbackSubmitting = false;
     toast(err instanceof Error ? err.message : 'Could not send feedback', true);
@@ -439,10 +439,10 @@ function landingReminderShowcase(): string {
 
   return `
   <section class="reminders-showcase" id="reminders">
-    <h2>The awkward message — already written for you</h2>
-    <p class="lead">You don't have to stare at a blank screen at midnight. CollectQuiet gives you five ready-to-send reminders that sound like a professional, not a collections agency.</p>
+    <h2>Messages you can actually send</h2>
+    <p class="lead">You don't need to stare at a blank email at midnight. CollectQuiet has five reminders that sound like you wrote them, not a collections agency.</p>
     <div class="showcase-grid">${cards}</div>
-    <p class="showcase-note">Day 1 is short and factual. Later steps get firmer — including pause-work. You send via email or WhatsApp; we fill client, amount, and invoice #.</p>
+    <p class="showcase-note">First one is short. Later ones get firmer, up to pausing work. You hit send; we fill in client, amount, and invoice number.</p>
   </section>`;
 }
 
@@ -455,7 +455,7 @@ function landingHtml(): string {
       <div class="hero-copy">
         <p class="eyebrow">For freelancers, consultants & small studios</p>
         <h1>Get paid without the awkward chase</h1>
-        <p class="lead">Most freelancers don’t forget to follow up — they delay because it feels pushy. CollectQuiet makes reminders part of your system: short, early, escalating messages you send via email or WhatsApp — so a week doesn’t become a month.</p>
+        <p class="lead">Following up on unpaid invoices is awkward. Most people put it off because it feels pushy. CollectQuiet gives you five short reminders to send over email or WhatsApp on a schedule, so a week doesn't turn into a month.</p>
         <div class="hero-cta">
           ${state.session
             ? `<button class="btn btn-primary" data-nav="dashboard">Go to dashboard</button>`
@@ -465,9 +465,9 @@ function landingHtml(): string {
           <button class="btn btn-ghost" data-scroll="proof">Why chasing feels awkward</button>
         </div>
         <ul class="hero-points">
-          <li>Short & factual — no apologetic “just checking in”</li>
-          <li>Fixed schedule: day 1 → 7 → 14 → pause work → final</li>
-          <li>One-click email or WhatsApp + audit trail</li>
+          <li>Short and direct. No "just checking in"</li>
+          <li>Day 1, then 7, 14, pause work, final notice</li>
+          <li>One click to email or WhatsApp, with a log of what you sent</li>
         </ul>
       </div>
       <div class="hero-card">
@@ -483,14 +483,14 @@ function landingHtml(): string {
           <small>Next reminder · Step 2 · WhatsApp</small>
           <p class="mock-reminder-subject">${escapeHtml(heroPreview.subject)}</p>
           <pre class="mock-reminder-body">${escapeHtml(heroPreview.body)}</pre>
-          <span class="badge badge-ok">Sounds professional — not desperate</span>
+          <span class="badge badge-ok">Professional tone, not desperate</span>
         </div>
       </div>
     </div>
   </section>
   ${landingReminderShowcase()}
   <section class="proof" id="proof">
-    <h2>Real people. Real pain. Fetched from the open web.</h2>
+    <h2>What freelancers say about chasing invoices</h2>
     <div class="quote-grid">
       <blockquote><p>"The worst part isn't sending the invoice, it's chasing it afterwards."</p><cite><a href="https://www.indiehackers.com/post/chasing-overdue-invoices-is-awkward-i-built-a-small-tool-to-automate-reminders-4f89bae266" target="_blank" rel="noopener">Indie Hackers · Mar 2026</a></cite></blockquote>
       <blockquote><p>"It makes him feel like he's being desperate, which he hates."</p><cite><a href="https://www.indiehackers.com/post/chasing-overdue-invoices-is-awkward-i-built-a-small-tool-to-automate-reminders-4f89bae266" target="_blank" rel="noopener">Indie Hackers · electrician persona</a></cite></blockquote>
@@ -500,9 +500,9 @@ function landingHtml(): string {
   <section class="features">
     <h2>How CollectQuiet works</h2>
     <div class="feature-grid">
-      <article><span class="step">1</span><h3>Log the invoice once</h3><p>Client, amount, due date, payment link. No accounting suite required.</p></article>
-      <article><span class="step">2</span><h3>Follow the schedule</h3><p>Dashboard tells you what’s due today. Send short, factual reminders — no midnight drafts.</p></article>
-      <article><span class="step">3</span><h3>Escalate when needed</h3><p>Pause-work and final notice are built in. Mark paid and the sequence stops.</p></article>
+      <article><span class="step">1</span><h3>Log the invoice once</h3><p>Client, amount, due date, payment link. No accounting software needed.</p></article>
+      <article><span class="step">2</span><h3>Follow the schedule</h3><p>Dashboard shows what's due today. The copy is ready; you just send.</p></article>
+      <article><span class="step">3</span><h3>Escalate when needed</h3><p>Pause work and final notice are built in. Mark paid and the sequence stops.</p></article>
     </div>
   </section>`;
 }
@@ -512,7 +512,7 @@ function authHtml(): string {
   return `
   <div class="page auth-page">
     <h1>${isSignIn ? 'Sign in' : 'Create account'}</h1>
-    <p class="lead">Your invoices and reminder history are stored securely in your account.</p>
+    <p class="lead">Your invoices and reminder history live in your account.</p>
     <form class="settings-form" id="auth-form">
       <label>Email<input name="email" type="email" required autocomplete="email" /></label>
       <label>Password<input name="password" type="password" required minlength="8" autocomplete="${isSignIn ? 'current-password' : 'new-password'}" /></label>
@@ -536,7 +536,7 @@ function dashboardHtml(): string {
       : `<div class="action-queue">
         <div class="action-queue-head">
           <h2>Send these today</h2>
-          <p>${dueToday.length} reminder${dueToday.length === 1 ? '' : 's'} on schedule — short & factual, no awkward rewrite.</p>
+          <p>${dueToday.length} reminder${dueToday.length === 1 ? '' : 's'} on schedule. Copy is ready to send.</p>
         </div>
         <ul class="action-list">
           ${dueToday
@@ -566,7 +566,7 @@ function dashboardHtml(): string {
       <td>${formatMoney(i.amount, state.settings.currency, state.settings.locale)}</td>
       <td>${formatDate(i.dueAt, state.settings.locale)}</td>
       <td>${statusBadge(i.status)}</td>
-      <td>${i.status === 'overdue' ? daysOverdue(i.dueAt) + 'd' : '—'}</td>
+      <td>${i.status === 'overdue' ? daysOverdue(i.dueAt) + 'd' : ''}</td>
       <td>${i.remindersSent}/${state.settings.sequence.length}</td>
       <td class="actions">
         ${i.status !== 'paid' && i.remindersSent < state.settings.sequence.length ? `<button class="btn btn-sm" data-remind-email="${escapeHtml(i.id)}">Email</button>` : ''}
@@ -594,7 +594,7 @@ function dashboardHtml(): string {
           <div class="email-subject">Subject: ${escapeHtml(preview.subject)}</div>
           <pre>${escapeHtml(preview.body)}</pre>
         </div>
-        <p class="muted preview-hint">Review, then send via Email or WhatsApp. Sending early asks for confirmation.</p>
+        <p class="muted preview-hint">Review it, then send via email or WhatsApp.</p>
         <div class="preview-actions">
           <button class="btn btn-sm" data-copy-preview>Copy text</button>
         </div>`;
@@ -604,7 +604,7 @@ function dashboardHtml(): string {
   return `
   <div class="dash">
     <header class="dash-head">
-      <div><h1>Dashboard</h1><p>See what’s due today — then send without rewriting the awkward email.</p></div>
+      <div><h1>Dashboard</h1><p>See what's due today and send without rewriting the email.</p></div>
       <div class="dash-actions">
         <button class="btn btn-ghost" data-import-csv>Import CSV</button>
         <button class="btn btn-primary" data-add-invoice>+ Add invoice</button>
@@ -619,12 +619,12 @@ function dashboardHtml(): string {
     </div>
     <div class="dash-grid">
       <div class="panel"><table class="inv-table"><thead><tr><th>Invoice</th><th>Amount</th><th>Due</th><th>Status</th><th>Overdue</th><th>Seq</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="panel preview-panel"><h3>Reminder preview</h3>${previewBlock}<button class="btn btn-ghost btn-sm" data-export>Export audit CSV</button></div>
+      <div class="panel preview-panel"><h3>Reminder preview</h3>${previewBlock}<button class="btn btn-ghost btn-sm" data-export>Download reminder log</button></div>
     </div>
     <div class="panel log-panel"><h3>Reminder log</h3>
       ${state.logs.length ? `<ul class="log-list">${state.logs.slice(0, 12).map((l) => {
         const inv = state.invoices.find((i) => i.id === l.invoiceId);
-        return `<li><time>${escapeHtml(new Date(l.sentAt).toLocaleString())}</time> · ${escapeHtml(inv?.invoiceNumber ?? l.invoiceId)} — ${escapeHtml(l.preview)}</li>`;
+        return `<li><time>${escapeHtml(new Date(l.sentAt).toLocaleString())}</time> · ${escapeHtml(inv?.invoiceNumber ?? l.invoiceId)}: ${escapeHtml(l.preview)}</li>`;
       }).join('')}</ul>` : '<p class="muted">No reminders sent yet.</p>'}
     </div>
   </div>`;
@@ -642,7 +642,7 @@ function sequencesHtml(): string {
     )
     .join('');
 
-  return `<div class="page"><h1>Your reminder messages</h1><p class="lead">Five short, factual steps (day 1 → 7 → 14 → pause work → final). No apologetic fluff — just a system freelancers said they’d actually send.</p><div class="seq-grid">${cards}</div><button class="btn btn-ghost" data-reset-seq>Reset to defaults</button></div>`;
+  return `<div class="page"><h1>Your reminder messages</h1><p class="lead">Five steps from day 1 to final notice. No apology waffle, just copy you'd actually send.</p><div class="seq-grid">${cards}</div><button class="btn btn-ghost" data-reset-seq>Reset to defaults</button></div>`;
 }
 
 function settingsHtml(): string {
@@ -657,7 +657,7 @@ function settingsHtml(): string {
       <label>Currency<select name="currency"><option value="USD" ${s.currency === 'USD' ? 'selected' : ''}>USD ($)</option><option value="INR" ${s.currency === 'INR' ? 'selected' : ''}>INR (₹)</option></select></label>
       <button class="btn btn-primary" type="submit">Save settings</button>
     </form>
-    <p class="muted demo-note">Send reminders via Email or WhatsApp. Every touch is logged to your audit trail.</p>
+    <p class="muted demo-note">Send reminders via email or WhatsApp. Everything you send gets logged.</p>
   </div>`;
 }
 
@@ -717,7 +717,7 @@ function feedbackModalHtml(): string {
   <div class="modal-backdrop" data-close-modal>
     <div class="modal" role="dialog" data-modal-inner>
       <h2>Send feedback</h2>
-      <p class="muted feedback-lead">Bug reports, feature ideas, or anything else — we read every message.</p>
+      <p class="muted feedback-lead">Bugs, ideas, whatever. We read these.</p>
       <form id="feedback-form">
         <label>Category
           <select name="category">
@@ -727,7 +727,7 @@ function feedbackModalHtml(): string {
           </select>
         </label>
         ${signedIn ? '' : '<label>Your email<input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>'}
-        <label>Message<textarea name="message" rows="5" required placeholder="Tell us what happened or what you'd like to see…"></textarea></label>
+        <label>Message<textarea name="message" rows="5" required placeholder="What's on your mind?"></textarea></label>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
           <button type="submit" class="btn btn-primary" ${state.feedbackSubmitting ? 'disabled' : ''}>${state.feedbackSubmitting ? 'Sending…' : 'Submit'}</button>
@@ -937,7 +937,7 @@ function bindEvents(): void {
     a.download = 'collectquiet-audit.csv';
     a.click();
     URL.revokeObjectURL(a.href);
-    toast('Audit CSV downloaded.');
+    toast('Reminder log downloaded.');
   });
 
   document.querySelectorAll('[data-select]').forEach((el) => {
