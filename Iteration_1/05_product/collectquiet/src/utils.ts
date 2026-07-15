@@ -1,4 +1,4 @@
-import type { AppSettings } from './types';
+import type { AppSettings, Invoice, ReminderStep } from './types';
 
 export function formatMoney(n: number, currency = 'USD', locale = 'en-US'): string {
   return new Intl.NumberFormat(locale, {
@@ -57,8 +57,29 @@ export function renderTemplate(
       settings.locale
     ),
   };
-  const replace = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? '');
+  const replace = (s: string) =>
+    s
+      .replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   return { subject: replace(step.subject), body: replace(step.body) };
+}
+
+/** Next reminder in sequence that is schedule-ready (dayOffset ≤ days overdue). */
+export function readyReminder(
+  invoice: Invoice,
+  sequence: ReminderStep[]
+): ReminderStep | null {
+  if (invoice.status === 'paid') return null;
+  const step = sequence[invoice.remindersSent];
+  if (!step) return null;
+  const overdue = daysOverdue(invoice.dueAt);
+  if (overdue < step.dayOffset) return null;
+  return step;
+}
+
+export function invoicesReadyToday(invoices: Invoice[], sequence: ReminderStep[]): Invoice[] {
+  return invoices.filter((i) => readyReminder(i, sequence) !== null);
 }
 
 export function nextInvoiceNumber(): string {

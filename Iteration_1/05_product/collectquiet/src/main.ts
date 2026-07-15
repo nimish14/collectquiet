@@ -23,9 +23,11 @@ import {
   daysOverdue,
   formatDate,
   formatMoney,
+  invoicesReadyToday,
   nextInvoiceNumber,
   openMailto,
   openWhatsApp,
+  readyReminder,
   renderTemplate,
 } from './utils';
 
@@ -126,6 +128,12 @@ async function loadUserData(): Promise<void> {
       fetchInvoices(state.user.id),
       fetchLogs(state.user.id),
     ]);
+    // Upgrade soft/apologetic defaults to short factual templates (Reddit-validated).
+    const firstSubject = settings.sequence[0]?.subject ?? '';
+    if (firstSubject.includes('quick check-in') || firstSubject.includes('Hope your')) {
+      settings.sequence = [...DEFAULT_SEQUENCE];
+      await saveSettings(state.user.id, settings);
+    }
     state.settings = settings;
     state.invoices = invoices;
     state.logs = logs;
@@ -203,6 +211,14 @@ async function sendReminder(invoice: Invoice, channel: 'email' | 'whatsapp'): Pr
   if (!step) {
     toast('All reminders in sequence have been sent.');
     return;
+  }
+  const overdue = daysOverdue(invoice.dueAt);
+  if (overdue < step.dayOffset) {
+    const wait = step.dayOffset - overdue;
+    const ok = window.confirm(
+      `This step is scheduled for day ${step.dayOffset} overdue (client is at ${overdue}d). Send ${wait} day(s) early anyway?`
+    );
+    if (!ok) return;
   }
   const { subject, body } = renderTemplate(step, invoice, state.settings);
   const message = `Subject: ${subject}\n\n${body}`;
@@ -426,7 +442,7 @@ function landingReminderShowcase(): string {
     <h2>The awkward message — already written for you</h2>
     <p class="lead">You don't have to stare at a blank screen at midnight. CollectQuiet gives you five ready-to-send reminders that sound like a professional, not a collections agency.</p>
     <div class="showcase-grid">${cards}</div>
-    <p class="showcase-note">Steps 3–5 escalate tone automatically. You send via email or WhatsApp — we fill in client name, amount, and invoice #.</p>
+    <p class="showcase-note">Day 1 is short and factual. Later steps get firmer — including pause-work. You send via email or WhatsApp; we fill client, amount, and invoice #.</p>
   </section>`;
 }
 
@@ -438,8 +454,8 @@ function landingHtml(): string {
     <div class="hero-grid">
       <div class="hero-copy">
         <p class="eyebrow">For freelancers, consultants & small studios</p>
-        <h1>You did the work. <em>We'll help you ask for the money.</em></h1>
-        <p class="lead">Late invoices stall because the follow-up feels awkward — not because the client forgot. CollectQuiet gives you ready-to-send reminder messages (email or WhatsApp) that escalate from polite to firm, so you stop drafting "just checking in on the invoice" at midnight and start getting paid.</p>
+        <h1>Get paid without the awkward chase</h1>
+        <p class="lead">Most freelancers don’t forget to follow up — they delay because it feels pushy. CollectQuiet makes reminders part of your system: short, early, escalating messages you send via email or WhatsApp — so a week doesn’t become a month.</p>
         <div class="hero-cta">
           ${state.session
             ? `<button class="btn btn-primary" data-nav="dashboard">Go to dashboard</button>`
@@ -449,9 +465,9 @@ function landingHtml(): string {
           <button class="btn btn-ghost" data-scroll="proof">Why chasing feels awkward</button>
         </div>
         <ul class="hero-points">
-          <li>Pre-written chase messages — friendly to final notice</li>
-          <li>Send via email or WhatsApp in one click</li>
-          <li>Track every reminder so money doesn't slip through</li>
+          <li>Short & factual — no apologetic “just checking in”</li>
+          <li>Fixed schedule: day 1 → 7 → 14 → pause work → final</li>
+          <li>One-click email or WhatsApp + audit trail</li>
         </ul>
       </div>
       <div class="hero-card">
@@ -484,9 +500,9 @@ function landingHtml(): string {
   <section class="features">
     <h2>How CollectQuiet works</h2>
     <div class="feature-grid">
-      <article><span class="step">1</span><h3>Log the invoice once</h3><p>Client, amount, due date. No QuickBooks required.</p></article>
-      <article><span class="step">2</span><h3>Send the chase</h3><p>Pick email or WhatsApp. The message is written — you just hit send.</p></article>
-      <article><span class="step">3</span><h3>Stop when you're paid</h3><p>Mark paid in one click. Export the audit log anytime.</p></article>
+      <article><span class="step">1</span><h3>Log the invoice once</h3><p>Client, amount, due date, payment link. No accounting suite required.</p></article>
+      <article><span class="step">2</span><h3>Follow the schedule</h3><p>Dashboard tells you what’s due today. Send short, factual reminders — no midnight drafts.</p></article>
+      <article><span class="step">3</span><h3>Escalate when needed</h3><p>Pause-work and final notice are built in. Mark paid and the sequence stops.</p></article>
     </div>
   </section>`;
 }
@@ -512,6 +528,34 @@ function dashboardHtml(): string {
 
   const selected = state.invoices.find((i) => i.id === state.selectedId);
   const overdue = state.invoices.filter((i) => i.status === 'overdue');
+  const dueToday = invoicesReadyToday(state.invoices, state.settings.sequence);
+
+  const dueTodayBlock =
+    dueToday.length === 0
+      ? `<div class="action-queue empty"><p><strong>Nothing due today.</strong> Add overdue invoices or wait for the next scheduled step.</p></div>`
+      : `<div class="action-queue">
+        <div class="action-queue-head">
+          <h2>Send these today</h2>
+          <p>${dueToday.length} reminder${dueToday.length === 1 ? '' : 's'} on schedule — short & factual, no awkward rewrite.</p>
+        </div>
+        <ul class="action-list">
+          ${dueToday
+            .map((i) => {
+              const step = readyReminder(i, state.settings.sequence)!;
+              return `<li class="action-item">
+                <div>
+                  <strong>${escapeHtml(i.invoiceNumber)}</strong> · ${escapeHtml(i.clientName)}
+                  <span class="muted">${formatMoney(i.amount, state.settings.currency, state.settings.locale)} · ${daysOverdue(i.dueAt)}d overdue · ${escapeHtml(step.label)}</span>
+                </div>
+                <div class="actions">
+                  <button class="btn btn-sm btn-primary" data-remind-email="${escapeHtml(i.id)}">Email</button>
+                  <button class="btn btn-sm" data-remind-wa="${escapeHtml(i.id)}">WhatsApp</button>
+                </div>
+              </li>`;
+            })
+            .join('')}
+        </ul>
+      </div>`;
 
   const rows = state.invoices.length
     ? state.invoices
@@ -542,13 +586,15 @@ function dashboardHtml(): string {
     } else {
       const preview = renderTemplate(state.settings.sequence[selected.remindersSent], selected, state.settings);
       const step = state.settings.sequence[selected.remindersSent];
+      const ready = readyReminder(selected, state.settings.sequence);
       previewBlock = `
-        <p class="preview-meta">Next for <strong>${escapeHtml(selected.clientName)}</strong> · <span class="badge badge-neutral">${escapeHtml(step.label)}</span></p>
+        <p class="preview-meta">Next for <strong>${escapeHtml(selected.clientName)}</strong> · <span class="badge badge-neutral">${escapeHtml(step.label)}</span>
+        ${ready ? '<span class="badge badge-ok">Ready today</span>' : `<span class="badge badge-warn">Scheduled day ${step.dayOffset}</span>`}</p>
         <div class="email-preview">
           <div class="email-subject">Subject: ${escapeHtml(preview.subject)}</div>
           <pre>${escapeHtml(preview.body)}</pre>
         </div>
-        <p class="muted preview-hint">Review, then send via Email or WhatsApp from the table.</p>
+        <p class="muted preview-hint">Review, then send via Email or WhatsApp. Sending early asks for confirmation.</p>
         <div class="preview-actions">
           <button class="btn btn-sm" data-copy-preview>Copy text</button>
         </div>`;
@@ -558,17 +604,18 @@ function dashboardHtml(): string {
   return `
   <div class="dash">
     <header class="dash-head">
-      <div><h1>Dashboard</h1><p>Track outstanding invoices and reminder progress.</p></div>
+      <div><h1>Dashboard</h1><p>See what’s due today — then send without rewriting the awkward email.</p></div>
       <div class="dash-actions">
         <button class="btn btn-ghost" data-import-csv>Import CSV</button>
         <button class="btn btn-primary" data-add-invoice>+ Add invoice</button>
       </div>
     </header>
+    ${dueTodayBlock}
     <div class="stats">
       <div class="stat"><span>Outstanding</span><strong>${formatMoney(outstanding(), state.settings.currency, state.settings.locale)}</strong></div>
       <div class="stat"><span>Collected</span><strong>${formatMoney(collected(), state.settings.currency, state.settings.locale)}</strong></div>
       <div class="stat"><span>Overdue</span><strong>${overdue.length}</strong></div>
-      <div class="stat"><span>Reminders sent</span><strong>${state.logs.length}</strong></div>
+      <div class="stat"><span>Due today</span><strong>${dueToday.length}</strong></div>
     </div>
     <div class="dash-grid">
       <div class="panel"><table class="inv-table"><thead><tr><th>Invoice</th><th>Amount</th><th>Due</th><th>Status</th><th>Overdue</th><th>Seq</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -595,7 +642,7 @@ function sequencesHtml(): string {
     )
     .join('');
 
-  return `<div class="page"><h1>Your reminder messages</h1><p class="lead">Five messages that escalate from a soft check-in to a final reminder — professional tone, no desperate midnight drafts.</p><div class="seq-grid">${cards}</div><button class="btn btn-ghost" data-reset-seq>Reset to defaults</button></div>`;
+  return `<div class="page"><h1>Your reminder messages</h1><p class="lead">Five short, factual steps (day 1 → 7 → 14 → pause work → final). No apologetic fluff — just a system freelancers said they’d actually send.</p><div class="seq-grid">${cards}</div><button class="btn btn-ghost" data-reset-seq>Reset to defaults</button></div>`;
 }
 
 function settingsHtml(): string {
