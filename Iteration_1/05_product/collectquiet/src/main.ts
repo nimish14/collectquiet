@@ -13,6 +13,7 @@ import {
   submitFeedback,
   updateInvoice,
 } from './lib/db';
+import { authErrorMessage } from './lib/auth-errors';
 import { downloadCsvTemplate, parseInvoiceCsv, type ParsedInvoiceRow } from './lib/csv-import';
 import { escapeHtml } from './lib/escape';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -311,7 +312,7 @@ async function handleSignIn(data: FormData): Promise<void> {
   const email = String(data.get('email'));
   const password = String(data.get('password'));
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) toast(error.message, true);
+  if (error) toast(authErrorMessage(error.message, 'signin'), true);
   else {
     state.view = 'dashboard';
     toast('Signed in.');
@@ -329,17 +330,36 @@ async function handleSignUp(data: FormData): Promise<void> {
     toast('Password must be at least 8 characters.', true);
     return;
   }
-  const { error } = await supabase.auth.signUp({ email, password });
-  if (error) toast(error.message, true);
-  else toast('Account created. Check email if confirmation is required, then sign in.');
+  const { data: authData, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: `${window.location.origin}/` },
+  });
+  if (error) {
+    toast(authErrorMessage(error.message, 'signup'), true);
+    return;
+  }
+  if (authData.session) {
+    state.view = 'dashboard';
+    toast('Account created. You are signed in.');
+    render();
+    return;
+  }
+  state.authMode = 'signin';
+  toast('Account created. Check your email for a confirmation link, then sign in.');
+  render();
 }
 
 async function handleResetPassword(email: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    toast('App is temporarily unavailable. Please try again later.', true);
+    return;
+  }
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/`,
   });
-  if (error) toast(error.message, true);
-  else toast('Password reset link sent to your email.');
+  if (error) toast(authErrorMessage(error.message, 'reset'), true);
+  else toast('If that email exists, a reset link is on its way. Check spam too.');
 }
 
 async function handleFeedbackSubmit(data: FormData): Promise<void> {
@@ -512,7 +532,8 @@ function authHtml(): string {
   return `
   <div class="page auth-page">
     <h1>${isSignIn ? 'Sign in' : 'Create account'}</h1>
-    <p class="lead">Your invoices and reminder history live in your account.</p>
+    <p class="lead">${isSignIn ? 'Your invoices and reminder history live in your account.' : 'Pick a password with at least 8 characters.'}</p>
+    ${isSignIn ? '' : '<p class="muted auth-note">If email confirmation is on, check your inbox after signing up before you can sign in.</p>'}
     <form class="settings-form" id="auth-form">
       <label>Email<input name="email" type="email" required autocomplete="email" /></label>
       <label>Password<input name="password" type="password" required minlength="8" autocomplete="${isSignIn ? 'current-password' : 'new-password'}" /></label>
