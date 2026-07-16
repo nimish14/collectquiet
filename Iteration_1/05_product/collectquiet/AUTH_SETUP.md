@@ -1,31 +1,25 @@
-# Fix login / email rate limit (Supabase)
+# Auth fix (do this now)
 
-If users see **Invalid login credentials** right after signup, or **Email rate limit exceeded** on forgot password, the cause is almost always Supabase auth email settings.
+Users cannot rely on confirmation or reset emails. Supabase built-in email allows about **2 emails per hour** for the whole project, so signup confirm + forgot password both fail.
 
-## What is happening
+## 1. Turn off Confirm email (required)
 
-1. **Confirm email is ON** (default): signup creates the account but login fails until they click the confirmation link. Supabase often returns "Invalid login credentials" instead of a clear message.
-2. **Built-in Supabase email** allows about **2 auth emails per hour** for the whole project. Signup + confirm + forgot password burns through that fast.
+1. Open https://supabase.com/dashboard/project/vyywwljyjmblofqyejvi/auth/providers
+2. Click **Email**
+3. Turn **OFF** **Confirm email**
+4. Save
 
-## Fix for testing and early users (recommended now)
+After this, new signups get a session immediately and can use the app.
 
-In [Supabase Dashboard](https://supabase.com/dashboard/project/vyywwljyjmblofqyejvi/auth/providers) → **Authentication** → **Providers** → **Email**:
+## 2. Unblock an existing user who forgot their password
 
-1. Turn **OFF** "Confirm email"
-2. Save
+1. Open https://supabase.com/dashboard/project/vyywwljyjmblofqyejvi/auth/users
+2. Open the user
+3. Use **Send password recovery** only if custom SMTP is set up  
+   **or** delete the user and have them sign up again after step 1  
+   **or** set a new password from the user menu if your dashboard version offers it
 
-New signups can sign in immediately with no email sent.
-
-Also add your site URL under **Authentication** → **URL Configuration**:
-
-- **Site URL:** `https://collectquiet.vercel.app`
-- **Redirect URLs:** `https://collectquiet.vercel.app/**` and `http://localhost:5173/**`
-
-## Unblock users already stuck
-
-**Authentication** → **Users** → open the user → confirm email manually,
-
-or run in **SQL Editor**:
+Stuck "not confirmed" accounts can also be fixed in SQL Editor:
 
 ```sql
 update auth.users
@@ -33,12 +27,17 @@ set email_confirmed_at = coalesce(email_confirmed_at, now())
 where email_confirmed_at is null;
 ```
 
-## Before real launch (production email)
+## 3. Site URL
 
-Set up custom SMTP so you are not capped at 2 emails/hour:
+**Authentication** → **URL Configuration**
 
-**Authentication** → **SMTP Settings** → use [Resend](https://resend.com), Mailgun, SendGrid, etc.
+- Site URL: `https://collectquiet.vercel.app`
+- Redirect URLs: `https://collectquiet.vercel.app/**`, `http://localhost:5173/**`
 
-Then **Authentication** → **Rate Limits** → raise "Rate limit for sending emails" (e.g. 30/hour).
+## 4. Before real launch: custom SMTP
 
-You can turn confirm email back on once SMTP is configured.
+Password reset and confirmation emails need real email:
+
+**Authentication** → **SMTP Settings** (Resend, Mailgun, etc.)
+
+Then raise email rate limits under **Authentication** → **Rate Limits**.
