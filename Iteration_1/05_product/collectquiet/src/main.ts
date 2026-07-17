@@ -11,14 +11,33 @@ import {
   fetchSettings,
   saveSettings,
   submitFeedback,
+  markInvoicePaidClient,
   updateInvoice,
 } from './lib/db';
 import { authErrorMessage } from './lib/auth-errors';
+import {
+  collectionsRequest,
+  fetchAttentionItems,
+  fetchAutomationSnapshot,
+  type AttentionItem,
+  type AutomationSnapshot,
+  type PlannedUiStep,
+} from './lib/collections-client';
 import { downloadCsvTemplate, parseInvoiceCsv, type ParsedInvoiceRow } from './lib/csv-import';
 import { escapeHtml } from './lib/escape';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import type { AppSettings, Invoice } from './types';
 import { DEFAULT_SEQUENCE } from './types';
+import { automationCardHtml } from './ui/automation-card';
+import {
+  buildDefaultPlannedSteps,
+  detectedTimezone,
+  utcIsoToDateTimeLocal,
+  validatePlannedSteps,
+  WHATSAPP_CHANNEL_SUPPORTED,
+} from './ui/automation-helpers';
+import { activationSummaryModalHtml, automationSetupModalHtml } from './ui/automation-modals';
+import { attentionPageHtml } from './ui/attention';
 import {
   copyText,
   daysOverdue,
@@ -32,7 +51,7 @@ import {
   renderTemplate,
 } from './utils';
 
-type View = 'landing' | 'dashboard' | 'sequences' | 'settings' | 'auth';
+type View = 'landing' | 'dashboard' | 'sequences' | 'settings' | 'auth' | 'attention';
 
 interface State {
   view: View;
@@ -54,6 +73,26 @@ interface State {
   toast: string | null;
   toastError: boolean;
   pendingInvoiceNumber: string;
+  /** Automation UX */
+  showAutoSetup: boolean;
+  showActivation: boolean;
+  autoMode: 'setup' | 'edit';
+  autoInvoiceId: string | null;
+  autoEnabled: boolean;
+  autoSteps: PlannedUiStep[];
+  autoTimezone: string;
+  autoFirmApproved: boolean;
+  autoPreviewIndex: number | null;
+  autoBusy: boolean;
+  autoError: string | null;
+  autoAutomationId: string | null;
+  automationSnapshot: AutomationSnapshot | null;
+  automationLoading: boolean;
+  automationError: string | null;
+  showTimeline: boolean;
+  attentionItems: AttentionItem[];
+  attentionLoading: boolean;
+  attentionError: string | null;
 }
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -72,6 +111,7 @@ const state: State = {
     senderEmail: '',
     currency: 'USD',
     locale: 'en-US',
+    timezone: detectedTimezone(),
     sequence: DEFAULT_SEQUENCE,
   },
   selectedId: null,
@@ -85,6 +125,25 @@ const state: State = {
   toast: null,
   toastError: false,
   pendingInvoiceNumber: nextInvoiceNumber(),
+  showAutoSetup: false,
+  showActivation: false,
+  autoMode: 'setup',
+  autoInvoiceId: null,
+  autoEnabled: true,
+  autoSteps: [],
+  autoTimezone: detectedTimezone(),
+  autoFirmApproved: false,
+  autoPreviewIndex: null,
+  autoBusy: false,
+  autoError: null,
+  autoAutomationId: null,
+  automationSnapshot: null,
+  automationLoading: false,
+  automationError: null,
+  showTimeline: false,
+  attentionItems: [],
+  attentionLoading: false,
+  attentionError: null,
 };
 
 function toast(msg: string, isError = false): void {
@@ -106,7 +165,7 @@ function collected(): number {
 }
 
 function requireAuth(view: View): View {
-  if (!state.session && ['dashboard', 'sequences', 'settings'].includes(view)) {
+  if (!state.session && ['dashboard', 'sequences', 'settings', 'attention'].includes(view)) {
     state.authMode = 'signin';
     state.view = 'auth';
     return 'auth';
@@ -135,14 +194,21 @@ async function loadUserData(): Promise<void> {
       settings.sequence = [...DEFAULT_SEQUENCE];
       await saveSettings(state.user.id, settings);
     }
+    if (!settings.timezone) settings.timezone = detectedTimezone();
     state.settings = settings;
     state.invoices = invoices;
     state.logs = logs;
+    try {
+      state.attentionItems = await fetchAttentionItems();
+    } catch {
+      /* optional — API may be unavailable in local static preview */
+    }
   } catch (err) {
     toast(err instanceof Error ? err.message : 'Failed to load data', true);
   } finally {
     state.loading = false;
     render();
+    if (state.selectedId) void loadAutomationForSelected();
   }
 }
 
@@ -154,6 +220,107 @@ function closeModals(): void {
   state.importPreview = null;
   state.importErrors = [];
   state.importInProgress = false;
+}
+
+function closeAutomationModals(): void {
+  state.showAutoSetup = false;
+  state.showActivation = false;
+  state.autoBusy = false;
+  state.autoError = null;
+  state.autoPreviewIndex = null;
+}
+
+async function loadAutomationForSelected(): Promise<void> {
+  if (!state.selectedId || !state.session) {
+    state.automationSnapshot = null;
+    state.automationError = null;
+    return;
+  }
+  state.automationLoading = true;
+  state.automationError = null;
+  render();
+  try {
+    state.automationSnapshot = await fetchAutomationSnapshot(state.selectedId);
+  } catch (err) {
+    state.automationSnapshot = null;
+    state.automationError = err instanceof Error ? err.message : 'Failed to load automation';
+  } finally {
+    state.automationLoading = false;
+    render();
+  }
+}
+
+async function loadAttention(): Promise<void> {
+  if (!state.session) return;
+  state.attentionLoading = true;
+  state.attentionError = null;
+  render();
+  try {
+    state.attentionItems = await fetchAttentionItems();
+  } catch (err) {
+    state.attentionError = err instanceof Error ? err.message : 'Failed to load inbox';
+  } finally {
+    state.attentionLoading = false;
+    render();
+  }
+}
+
+function openAutoSetup(invoiceId: string, mode: 'setup' | 'edit' = 'setup'): void {
+  const invoice = state.invoices.find((i) => i.id === invoiceId);
+  if (!invoice) return;
+  const tz = state.settings.timezone || detectedTimezone();
+  state.autoMode = mode;
+  state.autoInvoiceId = invoiceId;
+  state.autoEnabled = true;
+  state.autoTimezone = tz;
+  state.autoFirmApproved = false;
+  state.autoError = null;
+  state.autoPreviewIndex = null;
+  state.autoAutomationId = state.automationSnapshot?.automation?.id ?? null;
+
+  if (mode === 'edit' && state.automationSnapshot?.steps?.length) {
+    state.autoSteps = state.automationSnapshot.steps
+      .filter((s) => s.status === 'pending' || s.status === 'retry_scheduled')
+      .map((s) => ({
+        id: s.id,
+        sequenceNumber: s.sequenceNumber,
+        scheduledAtLocal: utcIsoToDateTimeLocal(s.scheduledAt, state.automationSnapshot!.automation!.timezone),
+        tone: s.tone as PlannedUiStep['tone'],
+        subject: s.subjectSnapshot,
+        body: s.bodySnapshot,
+        requireApproval: s.tone === 'firm' || s.tone === 'final',
+      }));
+    state.autoTimezone = state.automationSnapshot.automation?.timezone || tz;
+  } else {
+    state.autoSteps = buildDefaultPlannedSteps(invoice, state.settings);
+  }
+  state.showAutoSetup = true;
+  state.showActivation = false;
+  render();
+}
+
+function readStepsFromForm(form: HTMLFormElement): PlannedUiStep[] {
+  return state.autoSteps.map((step, index) => ({
+    ...step,
+    scheduledAtLocal: String(
+      (form.elements.namedItem(`scheduledAtLocal-${index}`) as HTMLInputElement)?.value ||
+        step.scheduledAtLocal
+    ),
+    tone: String(
+      (form.elements.namedItem(`tone-${index}`) as HTMLSelectElement)?.value || step.tone
+    ) as PlannedUiStep['tone'],
+    subject: String(
+      (form.elements.namedItem(`subject-${index}`) as HTMLInputElement)?.value || step.subject
+    ),
+    body: String(
+      (form.elements.namedItem(`body-${index}`) as HTMLTextAreaElement)?.value || step.body
+    ),
+    requireApproval:
+      String((form.elements.namedItem(`tone-${index}`) as HTMLSelectElement)?.value || step.tone) ===
+        'firm' ||
+      String((form.elements.namedItem(`tone-${index}`) as HTMLSelectElement)?.value || step.tone) ===
+        'final',
+  }));
 }
 
 async function handleImportConfirm(): Promise<void> {
@@ -263,15 +430,21 @@ async function removeInvoice(id: string): Promise<void> {
 
 async function markPaid(id: string): Promise<void> {
   if (!state.user) return;
+  // Optimistic UI update
+  const inv = state.invoices.find((i) => i.id === id);
+  if (inv) {
+    inv.status = 'paid';
+    inv.paidAt = new Date().toISOString().slice(0, 10);
+    render();
+  }
   try {
-    await updateInvoice(state.user.id, id, {
-      status: 'paid',
-      paidAt: new Date().toISOString().slice(0, 10),
-    });
-    toast('Invoice marked paid. Reminders stopped.');
+    await markInvoicePaidClient(state.user.id, id);
+    toast('Invoice marked paid. Collection stopped.');
     await loadUserData();
+    if (state.selectedId === id) void loadAutomationForSelected();
   } catch (err) {
     toast(err instanceof Error ? err.message : 'Failed to update invoice', true);
+    await loadUserData();
   }
 }
 
@@ -283,21 +456,29 @@ async function addInvoice(data: FormData): Promise<void> {
     toast('Due date must be on or after issue date.', true);
     return;
   }
+  const attachment = data.get('attachment') as File | null;
   try {
-    await createInvoice(state.user.id, {
+    const created = await createInvoice(state.user.id, {
       clientName: String(data.get('clientName')),
       clientEmail: String(data.get('clientEmail')),
-      clientPhone: String(data.get('clientPhone') || '') || undefined,
+      clientPhone: WHATSAPP_CHANNEL_SUPPORTED
+        ? String(data.get('clientPhone') || '') || undefined
+        : undefined,
       amount: Number(data.get('amount')),
       invoiceNumber: String(data.get('invoiceNumber')),
       issuedAt,
       dueAt,
       paymentLink: String(data.get('paymentLink') || '') || undefined,
+      invoiceLink: String(data.get('invoiceLink') || '') || undefined,
+      clientTimezone: String(data.get('clientTimezone') || '') || undefined,
+      attachmentName: attachment?.name || undefined,
     });
     state.showAddModal = false;
     state.pendingInvoiceNumber = nextInvoiceNumber();
+    state.selectedId = created.id;
     toast('Invoice added.');
     await loadUserData();
+    openAutoSetup(created.id, 'setup');
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to add invoice';
     toast(msg.includes('duplicate') ? 'Invoice number already exists.' : msg, true);
@@ -428,6 +609,7 @@ const LANDING_DEMO_SETTINGS: AppSettings = {
   senderEmail: 'jordan@example.com',
   currency: 'USD',
   locale: 'en-US',
+  timezone: 'UTC',
   sequence: DEFAULT_SEQUENCE,
 };
 
@@ -640,7 +822,16 @@ function dashboardHtml(): string {
     </div>
     <div class="dash-grid">
       <div class="panel"><table class="inv-table"><thead><tr><th>Invoice</th><th>Amount</th><th>Due</th><th>Status</th><th>Overdue</th><th>Seq</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="panel preview-panel"><h3>Reminder preview</h3>${previewBlock}<button class="btn btn-ghost btn-sm" data-export>Download reminder log</button></div>
+      <div class="preview-stack">
+        <div class="panel preview-panel"><h3>Reminder preview</h3>${previewBlock}<button class="btn btn-ghost btn-sm" data-export>Download reminder log</button></div>
+        ${automationCardHtml({
+          invoice: selected ?? null,
+          snapshot: state.automationSnapshot,
+          loading: state.automationLoading,
+          error: state.automationError,
+          showTimeline: state.showTimeline,
+        })}
+      </div>
     </div>
     <div class="panel log-panel"><h3>Reminder log</h3>
       ${state.logs.length ? `<ul class="log-list">${state.logs.slice(0, 12).map((l) => {
@@ -676,9 +867,10 @@ function settingsHtml(): string {
       <label>Your name<input name="senderName" value="${escapeHtml(s.senderName)}" required /></label>
       <label>Sender email<input name="senderEmail" type="email" value="${escapeHtml(s.senderEmail)}" required /></label>
       <label>Currency<select name="currency"><option value="USD" ${s.currency === 'USD' ? 'selected' : ''}>USD ($)</option><option value="INR" ${s.currency === 'INR' ? 'selected' : ''}>INR (₹)</option></select></label>
+      <label>Your timezone<input name="timezone" value="${escapeHtml(s.timezone || detectedTimezone())}" required /></label>
       <button class="btn btn-primary" type="submit">Save settings</button>
     </form>
-    <p class="muted demo-note">Send reminders via email or WhatsApp. Everything you send gets logged.</p>
+    <p class="muted demo-note">Automatic follow-ups use email. Manual WhatsApp send stays available from the dashboard.</p>
   </div>`;
 }
 
@@ -761,26 +953,74 @@ function feedbackModalHtml(): string {
 function addModalHtml(): string {
   if (!state.showAddModal) return '';
   const today = new Date().toISOString().slice(0, 10);
+  const userTz = state.settings.timezone || detectedTimezone();
   return `
   <div class="modal-backdrop" data-close-modal>
-    <div class="modal" role="dialog" data-modal-inner>
-      <h2>Add invoice</h2>
+    <div class="modal modal-lg" role="dialog" aria-labelledby="add-invoice-title" data-modal-inner>
+      <h2 id="add-invoice-title">Add invoice</h2>
       <form id="add-form">
-        <label>Client name<input name="clientName" required /></label>
-        <label>Client email<input name="clientEmail" type="email" required /></label>
-        <label>Client WhatsApp / phone<input name="clientPhone" type="tel" placeholder="+1 555 123 4567" /></label>
+        <label>Client name<input name="clientName" required autocomplete="name" /></label>
+        <label>Client email<input name="clientEmail" type="email" required autocomplete="email" /></label>
+        ${
+          WHATSAPP_CHANNEL_SUPPORTED
+            ? '<label>Client phone (WhatsApp)<input name="clientPhone" type="tel" placeholder="+1 555 123 4567" autocomplete="tel" /></label>'
+            : '<p class="muted tiny">Phone is hidden until WhatsApp automation is available. Manual WhatsApp still uses any number you already stored.</p>'
+        }
         <label>Invoice #<input name="invoiceNumber" value="${escapeHtml(state.pendingInvoiceNumber)}" required /></label>
-        <label>Amount<input name="amount" type="number" min="1" step="1" required /></label>
-        <label>Issued<input name="issuedAt" type="date" value="${today}" required /></label>
-        <label>Due<input name="dueAt" type="date" value="${today}" required /></label>
+        <label>Amount<input name="amount" type="number" min="1" step="0.01" required /></label>
+        <label>Currency<input value="${escapeHtml(state.settings.currency)}" disabled aria-readonly="true" /><span class="sr-only">Currency comes from Settings</span></label>
+        <label>Issue date<input name="issuedAt" type="date" value="${today}" required /></label>
+        <label>Due date<input name="dueAt" type="date" value="${today}" required /></label>
+        <label>Invoice link (optional)<input name="invoiceLink" type="url" placeholder="https://…" /></label>
         <label>Payment link (optional)<input name="paymentLink" type="url" placeholder="https://" /></label>
+        <label>Optional invoice attachment<input name="attachment" type="file" accept=".pdf,image/*" /><span class="muted tiny">Stored as a note for your records. Automated emails do not attach files yet.</span></label>
+        <label>Client timezone (optional)<input name="clientTimezone" placeholder="e.g. America/New_York" /></label>
+        <p class="muted tiny">Your timezone: <strong>${escapeHtml(userTz)}</strong> (change in Settings)</p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
-          <button type="submit" class="btn btn-primary">Add invoice</button>
+          <button type="submit" class="btn btn-primary">Save invoice</button>
         </div>
       </form>
     </div>
   </div>`;
+}
+
+function automationModalsHtml(): string {
+  const invoice = state.invoices.find((i) => i.id === state.autoInvoiceId) ?? null;
+  return (
+    automationSetupModalHtml({
+      open: state.showAutoSetup,
+      invoice,
+      enabled: state.autoEnabled,
+      channel: 'email',
+      timezone: state.autoTimezone,
+      userTimezone: detectedTimezone(),
+      clientTimezone: invoice?.clientTimezone ?? null,
+      steps: state.autoSteps,
+      previewIndex: state.autoPreviewIndex,
+      firmApproved: state.autoFirmApproved,
+      busy: state.autoBusy,
+      error: state.autoError,
+      currency: state.settings.currency,
+      mode: state.autoMode,
+    }) +
+    activationSummaryModalHtml({
+      open: state.showActivation,
+      invoice,
+      steps: state.autoSteps,
+      timezone: state.autoTimezone,
+      channel: 'email',
+      senderName: state.settings.senderName || 'You',
+      senderEmail: state.settings.senderEmail || state.user?.email || 'via CollectQuiet',
+      replyToHint: 'Client replies go to your CollectQuiet reply address',
+      currency: state.settings.currency,
+      locale: state.settings.locale,
+      busy: state.autoBusy,
+      error: state.autoError,
+      formatMoney,
+      formatDate,
+    })
+  );
 }
 
 function shell(): string {
@@ -790,9 +1030,18 @@ function shell(): string {
     : view === 'auth' ? authHtml()
     : view === 'dashboard' ? dashboardHtml()
     : view === 'sequences' ? sequencesHtml()
+    : view === 'attention' ? attentionPageHtml({
+        loading: state.attentionLoading,
+        error: state.attentionError,
+        items: state.attentionItems,
+        invoiceLabels: Object.fromEntries(
+          state.invoices.map((i) => [i.id, `${i.invoiceNumber} · ${i.clientName}`])
+        ),
+      })
     : settingsHtml();
 
   const userLabel = state.user?.email ? escapeHtml(state.user.email) : '';
+  const attentionCount = state.attentionItems.length;
 
   return `
   <div class="app-shell">
@@ -803,7 +1052,14 @@ function shell(): string {
       </button>
       <div class="nav-links">
         ${navLink('landing', 'Home')}
-        ${state.session ? navLink('dashboard', 'Dashboard') + navLink('sequences', 'Messages') + navLink('settings', 'Settings') : navLink('auth', 'Sign in')}
+        ${
+          state.session
+            ? navLink('dashboard', 'Dashboard') +
+              navLink('attention', attentionCount ? `Needs Attention (${attentionCount})` : 'Needs Attention') +
+              navLink('sequences', 'Messages') +
+              navLink('settings', 'Settings')
+            : navLink('auth', 'Sign in')
+        }
       </div>
       ${state.session
         ? `<span class="nav-user">${userLabel}</span><button class="btn btn-ghost btn-sm" data-sign-out>Sign out</button>`
@@ -814,7 +1070,8 @@ function shell(): string {
     ${addModalHtml()}
     ${importModalHtml()}
     ${feedbackModalHtml()}
-    ${state.toast ? `<div class="toast ${state.toastError ? 'toast-error' : ''}">${escapeHtml(state.toast)}</div>` : ''}
+    ${automationModalsHtml()}
+    ${state.toast ? `<div class="toast ${state.toastError ? 'toast-error' : ''}" role="status">${escapeHtml(state.toast)}</div>` : ''}
   </div>`;
 }
 
@@ -829,6 +1086,8 @@ function bindEvents(): void {
       const view = (el as HTMLElement).dataset.nav as View;
       state.view = resolveNav(view);
       render();
+      if (state.view === 'attention') void loadAttention();
+      if (state.view === 'dashboard' && state.selectedId) void loadAutomationForSelected();
     });
   });
 
@@ -917,6 +1176,7 @@ function bindEvents(): void {
       senderEmail: String(fd.get('senderEmail')),
       currency: String(fd.get('currency')),
       locale: String(fd.get('currency')) === 'INR' ? 'en-IN' : 'en-US',
+      timezone: String(fd.get('timezone') || detectedTimezone()),
     };
     void saveSettings(state.user.id, state.settings)
       .then(() => toast('Settings saved.'))
@@ -964,7 +1224,9 @@ function bindEvents(): void {
   document.querySelectorAll('[data-select]').forEach((el) => {
     el.addEventListener('click', () => {
       state.selectedId = (el as HTMLElement).dataset.select!;
+      state.showTimeline = false;
       render();
+      void loadAutomationForSelected();
     });
   });
 
@@ -996,6 +1258,368 @@ function bindEvents(): void {
       e.stopPropagation();
       void markPaid((el as HTMLElement).dataset.paid!);
     });
+  });
+
+  bindAutomationEvents();
+  bindAttentionEvents();
+}
+
+function bindAttentionEvents(): void {
+  document.querySelector('[data-attention-reload]')?.addEventListener('click', () => {
+    void loadAttention();
+  });
+
+  document.querySelectorAll('[data-attention-open]').forEach((el) => {
+    el.addEventListener('click', () => {
+      state.selectedId = (el as HTMLElement).dataset.attentionOpen!;
+      state.view = 'dashboard';
+      render();
+      void loadAutomationForSelected();
+    });
+  });
+
+  document.querySelectorAll('[data-attention-resolve]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = (el as HTMLElement).dataset.attentionResolve!;
+      void collectionsRequest({ action: 'resolve_attention', notificationId: id })
+        .then(() => {
+          toast('Marked resolved.');
+          return loadAttention();
+        })
+        .catch((err) => toast(err instanceof Error ? err.message : 'Resolve failed', true));
+    });
+  });
+}
+
+function bindAutomationEvents(): void {
+  document.querySelector('[data-auto-reload]')?.addEventListener('click', () => {
+    void loadAutomationForSelected();
+  });
+
+  document.querySelector('[data-auto-setup]')?.addEventListener('click', () => {
+    if (state.selectedId) openAutoSetup(state.selectedId, 'setup');
+  });
+
+  document.querySelector('[data-auto-edit]')?.addEventListener('click', () => {
+    if (state.selectedId) openAutoSetup(state.selectedId, 'edit');
+  });
+
+  document.querySelector('[data-auto-restart]')?.addEventListener('click', () => {
+    if (!state.selectedId) return;
+    if (!confirm('Restart automation for this invoice? You will confirm before anything sends.')) return;
+    openAutoSetup(state.selectedId, 'setup');
+  });
+
+  document.querySelector('[data-auto-toggle-timeline]')?.addEventListener('click', () => {
+    state.showTimeline = !state.showTimeline;
+    render();
+  });
+
+  document.querySelector('[data-auto-pause]')?.addEventListener('click', () => {
+    const id = state.automationSnapshot?.automation?.id;
+    if (!id) return;
+    void collectionsRequest({ action: 'pause', automationId: id })
+      .then(() => {
+        toast('Automation paused.');
+        return loadAutomationForSelected();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Pause failed', true));
+  });
+
+  document.querySelector('[data-auto-resume]')?.addEventListener('click', () => {
+    const id = state.automationSnapshot?.automation?.id;
+    if (!id) return;
+    const afterDispute = state.automationSnapshot?.automation?.stopReason === 'dispute';
+    if (afterDispute && !confirm('Resume after a dispute? Confirm only if you are ready to chase again.')) {
+      return;
+    }
+    void collectionsRequest({
+      action: 'resume',
+      automationId: id,
+      afterDispute,
+      confirm: afterDispute,
+    })
+      .then(() => {
+        toast('Automation resumed.');
+        return loadAutomationForSelected();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Resume failed', true));
+  });
+
+  document.querySelector('[data-auto-skip]')?.addEventListener('click', () => {
+    const id = state.automationSnapshot?.automation?.id;
+    if (!id) return;
+    void collectionsRequest({ action: 'skip_next', automationId: id })
+      .then(() => {
+        toast('Next reminder skipped.');
+        return loadAutomationForSelected();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Skip failed', true));
+  });
+
+  document.querySelector('[data-auto-send-now]')?.addEventListener('click', () => {
+    const id = state.automationSnapshot?.automation?.id;
+    if (!id) return;
+    const next = state.automationSnapshot?.steps
+      .filter((s) => s.status === 'pending' || s.status === 'retry_scheduled')
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+    if (!confirm('Send the next reminder now?')) return;
+    const firm =
+      next &&
+      (next.tone === 'firm' || next.tone === 'final') &&
+      !next.manualApprovedAt &&
+      confirm('This is a firm reminder. Approve sending it?');
+    if (next && (next.tone === 'firm' || next.tone === 'final') && !next.manualApprovedAt && !firm) {
+      return;
+    }
+    void collectionsRequest({
+      action: 'send_now',
+      automationId: id,
+      confirm: true,
+      firmApproved: Boolean(firm || next?.manualApprovedAt),
+    })
+      .then(() => {
+        toast('Next reminder queued to send now.');
+        return loadAutomationForSelected();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Send now failed', true));
+  });
+
+  document.querySelector('[data-auto-cancel]')?.addEventListener('click', () => {
+    const id = state.automationSnapshot?.automation?.id;
+    if (!id) return;
+    if (!confirm('Cancel this automation? Pending reminders will not send.')) return;
+    void collectionsRequest({ action: 'cancel', automationId: id, confirm: true })
+      .then(() => {
+        toast('Automation cancelled.');
+        return loadAutomationForSelected();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Cancel failed', true));
+  });
+
+  document.querySelector('[data-auto-mark-paid]')?.addEventListener('click', () => {
+    if (state.selectedId) void markPaid(state.selectedId);
+  });
+
+  document.querySelector('[data-auto-dispute]')?.addEventListener('click', () => {
+    if (!state.selectedId) return;
+    if (!confirm('Mark this invoice as disputed? Automation will pause.')) return;
+    void collectionsRequest({ action: 'mark_disputed', invoiceId: state.selectedId })
+      .then(() => {
+        toast('Marked disputed. Automation paused.');
+        return loadAutomationForSelected();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Dispute failed', true));
+  });
+
+  document.querySelectorAll('[data-close-auto-setup]').forEach((el) => {
+    el.addEventListener('click', () => {
+      closeAutomationModals();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-close-activation]').forEach((el) => {
+    el.addEventListener('click', () => {
+      state.showActivation = false;
+      render();
+    });
+  });
+
+  document.querySelector('[data-back-to-setup]')?.addEventListener('click', () => {
+    state.showActivation = false;
+    state.showAutoSetup = true;
+    render();
+  });
+
+  const setupForm = document.getElementById('auto-setup-form') as HTMLFormElement | null;
+  setupForm?.querySelector('input[name="enabled"]')?.addEventListener('change', (e) => {
+    state.autoEnabled = (e.target as HTMLInputElement).checked;
+    const steps = readStepsFromForm(setupForm);
+    state.autoSteps = steps;
+    state.autoTimezone = String(
+      (setupForm.elements.namedItem('timezone') as HTMLInputElement)?.value || state.autoTimezone
+    );
+    state.autoFirmApproved = Boolean(
+      (setupForm.elements.namedItem('firmApproved') as HTMLInputElement)?.checked
+    );
+    render();
+  });
+
+  document.querySelectorAll('[data-preview-step]').forEach((el) => {
+    el.addEventListener('click', () => {
+      if (!setupForm) return;
+      state.autoSteps = readStepsFromForm(setupForm);
+      state.autoPreviewIndex = Number((el as HTMLElement).dataset.previewStep);
+      state.autoTimezone = String(
+        (setupForm.elements.namedItem('timezone') as HTMLInputElement)?.value || state.autoTimezone
+      );
+      state.autoFirmApproved = Boolean(
+        (setupForm.elements.namedItem('firmApproved') as HTMLInputElement)?.checked
+      );
+      render();
+    });
+  });
+
+  document.querySelector('[data-add-step]')?.addEventListener('click', () => {
+    if (!setupForm) return;
+    const steps = readStepsFromForm(setupForm);
+    const last = steps[steps.length - 1];
+    const base = last?.scheduledAtLocal
+      ? new Date(last.scheduledAtLocal)
+      : new Date(Date.now() + 7 * 86400000);
+    base.setDate(base.getDate() + 7);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    steps.push({
+      sequenceNumber: steps.length + 1,
+      scheduledAtLocal: `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}T10:00`,
+      tone: 'direct',
+      subject: last?.subject ?? 'Invoice reminder',
+      body: last?.body ?? 'Following up on your invoice.',
+      requireApproval: false,
+    });
+    state.autoSteps = steps;
+    state.autoTimezone = String(
+      (setupForm.elements.namedItem('timezone') as HTMLInputElement)?.value || state.autoTimezone
+    );
+    render();
+  });
+
+  document.querySelectorAll('[data-remove-step]').forEach((el) => {
+    el.addEventListener('click', () => {
+      if (!setupForm || state.autoSteps.length <= 1) return;
+      const idx = Number((el as HTMLElement).dataset.removeStep);
+      const steps = readStepsFromForm(setupForm).filter((_, i) => i !== idx);
+      state.autoSteps = steps.map((s, i) => ({ ...s, sequenceNumber: i + 1 }));
+      render();
+    });
+  });
+
+  document.querySelector('[data-test-email]')?.addEventListener('click', () => {
+    if (!setupForm || !state.autoInvoiceId) return;
+    const steps = readStepsFromForm(setupForm);
+    const step = steps[state.autoPreviewIndex ?? 0] ?? steps[0];
+    if (!step) return;
+    void collectionsRequest({
+      action: 'test_email',
+      invoiceId: state.autoInvoiceId,
+      subject: step.subject,
+      body: step.body,
+      tone: step.tone,
+      timezone: state.autoTimezone,
+      senderName: state.settings.senderName,
+      businessName: state.settings.businessName,
+      ownerEmail: state.settings.senderEmail || state.user?.email,
+    })
+      .then(() => toast('Test email sent to you.'))
+      .catch((err) => toast(err instanceof Error ? err.message : 'Test send failed', true));
+  });
+
+  setupForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void (async () => {
+      if (!setupForm || !state.autoInvoiceId) return;
+      const enabled = Boolean(
+        (setupForm.elements.namedItem('enabled') as HTMLInputElement)?.checked
+      );
+      state.autoEnabled = enabled;
+      state.autoTimezone = String(
+        (setupForm.elements.namedItem('timezone') as HTMLInputElement)?.value || state.autoTimezone
+      );
+      state.autoFirmApproved = Boolean(
+        (setupForm.elements.namedItem('firmApproved') as HTMLInputElement)?.checked
+      );
+      state.autoSteps = readStepsFromForm(setupForm);
+
+      if (!enabled) {
+        closeAutomationModals();
+        toast('Invoice saved without automatic follow-ups.');
+        render();
+        return;
+      }
+
+      const validation = validatePlannedSteps(state.autoSteps);
+      if (validation) {
+        state.autoError = validation;
+        render();
+        return;
+      }
+      if (
+        state.autoSteps.some((s) => s.tone === 'firm' || s.tone === 'final') &&
+        !state.autoFirmApproved
+      ) {
+        state.autoError = 'Approve firm / final reminders before continuing.';
+        render();
+        return;
+      }
+
+      if (state.autoMode === 'edit') {
+        const automationId =
+          state.autoAutomationId || state.automationSnapshot?.automation?.id;
+        if (!automationId) {
+          state.autoError = 'No automation to update.';
+          render();
+          return;
+        }
+        state.autoBusy = true;
+        state.autoError = null;
+        render();
+        try {
+          await collectionsRequest({
+            action: 'update_pending',
+            automationId,
+            timezone: state.autoTimezone,
+            reminders: state.autoSteps,
+            firmApproved: state.autoFirmApproved,
+          });
+          closeAutomationModals();
+          toast('Future reminders updated.');
+          await loadAutomationForSelected();
+        } catch (err) {
+          state.autoBusy = false;
+          state.autoError = err instanceof Error ? err.message : 'Update failed';
+          render();
+        }
+        return;
+      }
+
+      state.showAutoSetup = false;
+      state.showActivation = true;
+      state.autoError = null;
+      render();
+    })();
+  });
+
+  document.querySelector('[data-confirm-activate]')?.addEventListener('click', () => {
+    void (async () => {
+      if (!state.autoInvoiceId) return;
+      state.autoBusy = true;
+      state.autoError = null;
+      render();
+      try {
+        const created = await collectionsRequest<{ automationId: string }>({
+          action: 'create',
+          invoiceId: state.autoInvoiceId,
+          timezone: state.autoTimezone,
+        });
+        await collectionsRequest({
+          action: 'activate',
+          automationId: created.automationId,
+          timezone: state.autoTimezone,
+          reminders: state.autoSteps,
+          firmApproved: state.autoFirmApproved,
+          confirm: true,
+        });
+        closeAutomationModals();
+        toast('Automatic follow-ups started.');
+        await loadAutomationForSelected();
+        void loadAttention();
+      } catch (err) {
+        state.autoBusy = false;
+        state.autoError = err instanceof Error ? err.message : 'Activation failed';
+        render();
+      }
+    })();
   });
 }
 
