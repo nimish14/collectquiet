@@ -6,12 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "collections:dry-run": "tsx scripts/dry-run-tick.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@vercel/node": "^5.3.6",
+    "tsx": "^4.20.3",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2"

@@ -14,6 +14,8 @@ type InvoiceRow = {
   due_at: string;
   status: string;
   payment_link: string | null;
+  invoice_link: string | null;
+  client_timezone: string | null;
   notes: string | null;
   reminders_sent: number;
   paid_at: string | null;
@@ -36,10 +38,13 @@ type ProfileRow = {
   sender_email: string;
   currency: string;
   locale: string;
+  timezone: string | null;
   sequence: ReminderStep[] | null;
 };
 
 function rowToInvoice(row: InvoiceRow): Invoice {
+  const notes = row.notes ?? undefined;
+  const attachmentMatch = notes?.match(/^\[attachment:([^\]]+)\]\n?/);
   const invoice: Invoice = {
     id: row.id,
     clientName: row.client_name,
@@ -51,7 +56,10 @@ function rowToInvoice(row: InvoiceRow): Invoice {
     dueAt: row.due_at,
     status: row.status as Invoice['status'],
     paymentLink: row.payment_link ?? undefined,
-    notes: row.notes ?? undefined,
+    invoiceLink: row.invoice_link ?? undefined,
+    clientTimezone: row.client_timezone ?? undefined,
+    attachmentName: attachmentMatch?.[1],
+    notes: attachmentMatch ? notes?.slice(attachmentMatch[0].length) || undefined : notes,
     remindersSent: row.reminders_sent,
     paidAt: row.paid_at ?? undefined,
   };
@@ -75,7 +83,7 @@ function rowToLog(row: LogRow): ReminderLog {
 export async function fetchSettings(userId: string): Promise<AppSettings> {
   const { data, error } = await supabase
     .from('cq_profiles')
-    .select('business_name, sender_name, sender_email, currency, locale, sequence')
+    .select('business_name, sender_name, sender_email, currency, locale, timezone, sequence')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -88,6 +96,7 @@ export async function fetchSettings(userId: string): Promise<AppSettings> {
       senderEmail: '',
       currency: 'USD',
       locale: 'en-US',
+      timezone: 'UTC',
       sequence: DEFAULT_SEQUENCE,
     };
   }
@@ -99,6 +108,7 @@ export async function fetchSettings(userId: string): Promise<AppSettings> {
     senderEmail: row.sender_email ?? '',
     currency: row.currency ?? 'USD',
     locale: row.locale ?? 'en-US',
+    timezone: row.timezone || 'UTC',
     sequence: Array.isArray(row.sequence) && row.sequence.length > 0 ? row.sequence : DEFAULT_SEQUENCE,
   };
 }
@@ -111,6 +121,7 @@ export async function saveSettings(userId: string, settings: AppSettings): Promi
     sender_email: settings.senderEmail,
     currency: settings.currency,
     locale: settings.locale,
+    timezone: settings.timezone || 'UTC',
     sequence: settings.sequence,
   });
   if (error) throw error;
@@ -132,6 +143,9 @@ export async function createInvoice(
   invoice: Omit<Invoice, 'id' | 'remindersSent' | 'status'> & { status?: Invoice['status'] }
 ): Promise<Invoice> {
   const status = invoice.status ?? computeStatus({ ...invoice, status: 'pending' });
+  const notesPayload = invoice.attachmentName
+    ? `[attachment:${invoice.attachmentName}]\n${invoice.notes ?? ''}`.trim()
+    : invoice.notes ?? null;
   const { data, error } = await supabase
     .from('cq_invoices')
     .insert({
@@ -145,7 +159,9 @@ export async function createInvoice(
       due_at: invoice.dueAt,
       status,
       payment_link: invoice.paymentLink ?? null,
-      notes: invoice.notes ?? null,
+      invoice_link: invoice.invoiceLink ?? null,
+      client_timezone: invoice.clientTimezone ?? null,
+      notes: notesPayload,
       reminders_sent: 0,
       paid_at: invoice.paidAt ?? null,
     })
@@ -159,15 +175,44 @@ export async function createInvoice(
 export async function updateInvoice(
   userId: string,
   id: string,
-  patch: Partial<Pick<Invoice, 'remindersSent' | 'status' | 'paidAt'>>
+  patch: Partial<Pick<Invoice, 'remindersSent' | 'status' | 'paidAt'>> & {
+    collectionStatus?: string;
+  }
 ): Promise<void> {
   const payload: Record<string, unknown> = {};
   if (patch.remindersSent !== undefined) payload.reminders_sent = patch.remindersSent;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.paidAt !== undefined) payload.paid_at = patch.paidAt;
+  if (patch.collectionStatus !== undefined) payload.collection_status = patch.collectionStatus;
 
   const { error } = await supabase.from('cq_invoices').update(payload).eq('id', id).eq('user_id', userId);
   if (error) throw error;
+}
+
+/** Mark paid via collections API when available; falls back to direct invoice update. */
+export async function markInvoicePaidClient(userId: string, invoiceId: string): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (token) {
+    try {
+      const res = await fetch('/api/collections/mark-paid', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ invoiceId }),
+      });
+      if (res.ok) return;
+    } catch {
+      /* fall through to direct update */
+    }
+  }
+  await updateInvoice(userId, invoiceId, {
+    status: 'paid',
+    paidAt: new Date().toISOString().slice(0, 10),
+    collectionStatus: 'paid',
+  });
 }
 
 export async function deleteInvoice(userId: string, id: string): Promise<void> {

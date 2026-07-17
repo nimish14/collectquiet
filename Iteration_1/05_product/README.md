@@ -6,10 +6,13 @@
 
 ## Environment
 
-CollectQuiet reads Supabase config from the **repo root** `Run/.env`:
+CollectQuiet reads Supabase config from the **repo root** `Run/.env`.
+
+**Primary DB:** Supabase project **CollectQuite** (`vyywwljyjmblofqyejvi`).  
+Do not use `nimish14's Project` for this app — see `collectquiet/docs/SUPABASE_PROJECT.md`.
 
 ```env
-SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_URL=https://vyywwljyjmblofqyejvi.supabase.co
 SUPABASE_KEY=sb_publishable_...
 ```
 

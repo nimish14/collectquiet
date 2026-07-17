@@ -31,6 +31,9 @@ export interface Invoice {
   dueAt: string;
   status: InvoiceStatus;
   paymentLink?: string;
+  invoiceLink?: string;
+  clientTimezone?: string;
+  attachmentName?: string;
   notes?: string;
   remindersSent: number;
   paidAt?: string;
@@ -42,6 +45,7 @@ export interface AppSettings {
   senderEmail: string;
   currency: string;
   locale: string;
+  timezone: string;
   sequence: ReminderStep[];
 }
 
