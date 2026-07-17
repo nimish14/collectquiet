@@ -14,7 +14,7 @@
 
 ## Day-2 operations
 
-1. Confirm cron: Vercel → `/api/collections/tick` every 5 minutes; look for `scheduler_ticks` / `tick_complete` logs.
+1. Confirm scheduler: Vercel Hobby runs tick once daily (`0 9 * * *`); for frequent sends use an external cron every 5 minutes against `/api/collections/tick` with `CRON_SECRET`. Look for `scheduler_ticks` / `tick_complete` logs.
 2. Watch `collections-alerts` JSON lines (see [collections-incident-response.md](./collections-incident-response.md)).
 3. Needs Attention inbox for disputes, promises, unmatched replies.
 4. After each founder send: verify timeline shows `reminder_sent` once; no duplicate.
