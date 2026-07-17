@@ -60,6 +60,21 @@ Point both to your production URL:
 Use the same Svix signing secret as `RESEND_WEBHOOK_SECRET`.  
 Inbound address domain must match `COLLECTION_INBOUND_DOMAIN`.
 
+## 3b. Scheduler on Hobby (important)
+
+Vercel Hobby only allows **one cron per day**. Production uses `0 9 * * *` (09:00 UTC) as a backup.
+
+For a real 2–3 day pilot, add an **external cron** (e.g. [cron-job.org](https://cron-job.org)) every 5 minutes:
+
+```http
+POST https://collectquiet.vercel.app/api/collections/tick
+Authorization: Bearer <CRON_SECRET>
+```
+
+(or header `x-cron-secret: <CRON_SECRET>`)
+
+Upgrade to Vercel Pro later if you want native `*/5` crons.
+
 ## 4. Smoke test (day 0)
 
 1. Sign in as **you** on https://collectquiet.vercel.app  
@@ -67,7 +82,8 @@ Inbound address domain must match `COLLECTION_INBOUND_DOMAIN`.
 3. Add a **low-value / test** invoice to an address **you control** (e.g. second inbox)  
 4. Complete **Set up automatic follow-ups** → review → **Start automatic follow-ups**  
 5. Set first reminder a few minutes ahead (or use Send now after confirm)  
-6. Wait for cron (`*/5 * * * *`) or confirm tick logs in Vercel  
+6. Trigger tick via external cron or:  
+   `curl -X POST https://collectquiet.vercel.app/api/collections/tick -H "Authorization: Bearer $CRON_SECRET"`  
 7. Confirm **one** email arrived; timeline shows `reminder_sent` once  
 8. Reply from the client inbox (promise / question) → automation **pauses** → Needs Attention  
 9. Mark paid → automation **completed**, no further sends  
