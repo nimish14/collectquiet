@@ -4,24 +4,28 @@ export function authErrorMessage(raw: string, context: 'signin' | 'signup' | 're
 
   if (msg.includes('rate limit') || msg.includes('429')) {
     if (context === 'reset') {
-      return 'Password reset email could not be sent. Email delivery is limited on this app right now.';
+      return 'Too many reset attempts. Wait a few minutes and try again.';
     }
-    return 'Too many signup emails sent. Wait a bit, then try again with a different email if needed.';
+    return 'Too many attempts. Wait a minute, then try again.';
   }
 
   if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
-    return 'This account is not active yet. Ask the site owner to confirm your email in Supabase, then try again.';
+    return 'This account is not active yet. Contact the person who invited you and we will unlock it.';
   }
 
   if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
     if (context === 'signin') {
-      return 'Wrong email or password. Password reset by email is not working yet, so use the password you signed up with.';
+      return 'Wrong email or password. Double-check both, or create an account if you are new.';
     }
     return raw;
   }
 
-  if (msg.includes('user already registered')) {
-    return 'That email is already registered. Try signing in with the password you used at signup.';
+  if (msg.includes('user already registered') || msg.includes('already been registered')) {
+    return 'That email already has an account. Sign in instead.';
+  }
+
+  if (msg.includes('password should be') || msg.includes('password is known')) {
+    return 'Choose a stronger password (at least 8 characters).';
   }
 
   return raw;

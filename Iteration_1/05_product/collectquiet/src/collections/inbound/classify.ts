@@ -131,10 +131,20 @@ export function classifyWithRules(input: {
     return ruleResult('dispute', 'Explicit dispute language', { requiresUserAction: true });
   }
 
+  // Refusal before promise/claim so "will not pay" never matches "will pay".
   if (
-    /\b(i('ve| have)? (already )?paid|payment (has been |was )?sent|just paid|marked as paid|wire (has been |was )?sent)\b/i.test(
+    /\b(will not pay|won'?t pay|will not be paying|not (going to |gonna )?pay( you| this| the invoice)?|refuse(s|d)? to pay|i'?m not paying|not paying (you|this|the invoice)|don'?t (owe|intend to pay))\b/i.test(
       blob
     )
+  ) {
+    return ruleResult('dispute', 'Client refuses to pay', { requiresUserAction: true });
+  }
+
+  if (
+    /\b(i('ve| have)? (already )?paid|payment (has been |was )?sent|just paid|marked as paid|wire (has been |was )?sent|i (have )?sent .{0,60}(please )?check|sent (the )?(payment|money|amount|funds)|\bi sent \d+|have sent \d+|paid\.?\s*(please )?check|payment (done|complete[d]?|received)|transfer (sent|done|complete[d]?))\b/i.test(
+      blob
+    ) ||
+    /^\s*paid[.!]?\s*$/i.test(text.trim())
   ) {
     return ruleResult('payment_claimed', 'Explicit payment-completed claim', {
       requiresUserAction: true,

@@ -467,6 +467,25 @@ describe('rules helpers', () => {
     expect(classifyWithRules({ subject: '', text: 'STOP' })?.category).toBe('unsubscribe');
   });
 
+  it('classifies informal payment-sent claims', () => {
+    expect(
+      classifyWithRules({ subject: 'Re: Invoice', text: 'i have sent 500 please check' })?.category
+    ).toBe('payment_claimed');
+    expect(classifyWithRules({ subject: '', text: 'Paid. Please check' })?.category).toBe(
+      'payment_claimed'
+    );
+    expect(classifyWithRules({ subject: '', text: 'Paid' })?.category).toBe('payment_claimed');
+  });
+
+  it('classifies payment refusal as dispute', () => {
+    expect(classifyWithRules({ subject: '', text: 'I will not pay you' })?.category).toBe(
+      'dispute'
+    );
+    expect(classifyWithRules({ subject: '', text: "won't pay this invoice" })?.category).toBe(
+      'dispute'
+    );
+  });
+
   it('parseMessageIdList and extractReplyToken', () => {
     expect(extractReplyToken('cq+AbC123@reply.test')).toBe('abc123');
     expect(parseMessageIdList('<a@b.com> <c@d.com>')).toEqual(['a@b.com', 'c@d.com']);

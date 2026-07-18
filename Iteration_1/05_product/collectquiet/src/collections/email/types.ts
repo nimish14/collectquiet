@@ -37,7 +37,7 @@ export interface ReminderEmailContext {
 export interface ComposedReminderEmail {
   from: string;
   to: string;
-  replyTo: string;
+  replyTo: string | null;
   subject: string;
   text: string;
   headers: Record<string, string>;
@@ -133,7 +133,7 @@ export interface SafetyCheckInput {
 export interface EmailPreview {
   provider: string;
   from: string;
-  replyTo: string;
+  replyTo: string | null;
   to: string;
   subject: string;
   text: string;

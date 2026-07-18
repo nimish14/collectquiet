@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "bundle:api": "node scripts/bundle-api.mjs",
+    "build": "node scripts/bundle-api.mjs && tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@vercel/node": "^5.3.6",
+    "esbuild": "^0.28.0",
     "tsx": "^4.20.3",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",

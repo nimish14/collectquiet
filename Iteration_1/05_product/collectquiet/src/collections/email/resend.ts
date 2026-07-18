@@ -114,6 +114,21 @@ export class ResendEmailProvider implements EmailProvider {
       );
     }
 
+    const payload: Record<string, unknown> = {
+      from: email.from,
+      to: [email.to],
+      subject: email.subject,
+      text: email.text,
+      headers: email.headers,
+      tags: email.tags.map((t) => ({
+        name: t.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 256),
+        value: t.value.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 256),
+      })),
+    };
+    if (email.replyTo) {
+      payload.reply_to = email.replyTo;
+    }
+
     const res = await this.fetchImpl(`${this.baseUrl}/emails`, {
       method: 'POST',
       headers: {
@@ -121,25 +136,28 @@ export class ResendEmailProvider implements EmailProvider {
         'Content-Type': 'application/json',
         'Idempotency-Key': email.idempotencyKey,
       },
-      body: JSON.stringify({
-        from: email.from,
-        to: [email.to],
-        reply_to: email.replyTo,
-        subject: email.subject,
-        text: email.text,
-        headers: email.headers,
-        tags: email.tags,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
     if (!res.ok) {
       const msg = typeof raw.message === 'string' ? raw.message : `Resend HTTP ${res.status}`;
+      console.error(
+        JSON.stringify({
+          svc: 'resend',
+          event: 'send_failed',
+          status: res.status,
+          message: msg,
+          from: email.from,
+          to: email.to,
+          replyTo: email.replyTo,
+        })
+      );
       const permanent =
         res.status === 422 ||
         res.status === 400 ||
-        /invalid|unsubscribed|not allowed/i.test(msg);
+        /invalid|unsubscribed|not allowed|not verified|validation/i.test(msg);
       throw new EmailProviderError(
         msg,
         permanent ? 'permanent' : 'temporary',

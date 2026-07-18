@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Generated serverless bundles (from server/api via npm run bundle:api)
+/api/

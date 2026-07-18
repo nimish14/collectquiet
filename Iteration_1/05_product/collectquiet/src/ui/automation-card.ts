@@ -9,6 +9,12 @@ import {
   STEP_STATUS_LABELS,
 } from './automation-helpers';
 
+/** Soft notice while email delivery is still in pilot. */
+const EMAIL_TEST_TIP = `
+  <p class="auto-tip" role="note">
+    <strong>Email delivery is in early access.</strong> You can still preview messages and test the complete reminder workflow.
+  </p>`;
+
 export function automationCardHtml(opts: {
   invoice: Invoice | null;
   snapshot: AutomationSnapshot | null;
@@ -32,6 +38,7 @@ export function automationCardHtml(opts: {
     <div class="panel auto-card">
       <h3>Automatic follow-ups</h3>
       <p class="muted">No automation for this invoice yet.</p>
+      ${EMAIL_TEST_TIP}
       <div class="auto-actions">
         <button class="btn btn-sm btn-primary" data-auto-setup>Set up automatic follow-ups</button>
       </div>
@@ -78,14 +85,20 @@ export function automationCardHtml(opts: {
     : '';
 
   const terminal = a.status === 'completed' || a.status === 'cancelled';
+  const disputed =
+    snap.collectionStatus === 'disputed' || a.stopReason === 'dispute';
+  const canChase = opts.invoice.status !== 'paid' && !disputed;
 
   return `
   <div class="panel auto-card">
     <div class="auto-card-head">
       <h3>Automatic follow-ups</h3>
       <span class="badge ${statusBadgeClass(a.status)}" aria-label="Status: ${escapeHtml(labelAutomationStatus(a.status))}">${escapeHtml(labelAutomationStatus(a.status))}</span>
+      ${disputed ? '<span class="badge badge-warn">Disputed</span>' : ''}
     </div>
+    ${disputed ? `<p class="attention-banner" role="status">This invoice is marked disputed. Pending reminders were cancelled. Resume only if you intentionally want to chase again.</p>` : ''}
     ${snap.needsAttention ? `<p class="attention-banner" role="status"><span class="badge badge-warn">Needs attention</span> Open Needs Attention for the recommended next step.</p>` : ''}
+    ${EMAIL_TEST_TIP}
     <dl class="auto-meta">
       <div><dt>Next scheduled reminder</dt><dd>${next ? escapeHtml(formatLocalSchedule(next.scheduledAt, a.timezone)) : 'None'}</dd></div>
       <div><dt>Current tone</dt><dd>${escapeHtml(String(currentTone))}</dd></div>
@@ -95,14 +108,16 @@ export function automationCardHtml(opts: {
       <div><dt>Payment promise</dt><dd>${escapeHtml(promise)}</dd></div>
     </dl>
     <div class="auto-actions" role="group" aria-label="Automation actions">
-      ${a.status === 'active' ? '<button class="btn btn-sm" data-auto-pause>Pause</button>' : ''}
-      ${a.status === 'paused' || a.status === 'awaiting_user' ? '<button class="btn btn-sm btn-primary" data-auto-resume>Resume</button>' : ''}
-      ${!terminal ? '<button class="btn btn-sm" data-auto-edit>Edit future reminders</button>' : ''}
-      ${next ? '<button class="btn btn-sm" data-auto-skip>Skip next reminder</button>' : ''}
-      ${next ? '<button class="btn btn-sm" data-auto-send-now>Send now</button>' : ''}
+      ${a.status === 'active' && !disputed ? '<button class="btn btn-sm" data-auto-pause>Pause</button>' : ''}
+      ${(a.status === 'paused' || a.status === 'awaiting_user') && !disputed ? '<button class="btn btn-sm btn-primary" data-auto-resume>Resume</button>' : ''}
+      ${disputed && (a.status === 'paused' || a.status === 'awaiting_user') ? '<button class="btn btn-sm btn-primary" data-auto-resume>Resume after dispute</button>' : ''}
+      ${!terminal && !disputed ? '<button class="btn btn-sm" data-auto-edit>Edit future reminders</button>' : ''}
+      ${next && !disputed ? '<button class="btn btn-sm" data-auto-skip>Skip next reminder</button>' : ''}
+      ${next && !disputed ? '<button class="btn btn-sm" data-auto-send-now>Send now</button>' : ''}
       ${!terminal ? '<button class="btn btn-sm btn-ghost" data-auto-cancel>Cancel automation</button>' : ''}
-      ${opts.invoice.status !== 'paid' ? '<button class="btn btn-sm btn-ok" data-auto-mark-paid>Mark paid</button>' : ''}
-      ${opts.invoice.status !== 'paid' ? '<button class="btn btn-sm btn-ghost" data-auto-dispute>Mark disputed</button>' : ''}
+      ${canChase ? '<button class="btn btn-sm btn-ok" data-auto-mark-paid>Mark paid</button>' : ''}
+      ${canChase ? '<button class="btn btn-sm btn-ghost" data-auto-dispute>Mark disputed</button>' : ''}
+      ${!terminal ? '<button class="btn btn-sm" data-auto-log-reply>Log client reply</button>' : ''}
       ${terminal ? '<button class="btn btn-sm btn-primary" data-auto-restart>Restart automation</button>' : ''}
       <button class="btn btn-sm btn-ghost" data-auto-toggle-timeline>${opts.showTimeline ? 'Hide' : 'View'} audit history</button>
     </div>

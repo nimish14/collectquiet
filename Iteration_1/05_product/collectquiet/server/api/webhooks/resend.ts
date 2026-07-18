@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { ResendEmailProvider } from '../../src/collections/email/resend';
-import { processDeliveryWebhook } from '../../src/collections/email/webhooks';
+import { ResendEmailProvider } from '../../../src/collections/email/resend';
+import { processDeliveryWebhook } from '../../../src/collections/email/webhooks';
 import { createSupabaseWorkerStore } from '../_lib/supabaseWorkerStore';
-import { collectionsMetrics } from '../../src/collections/observability/metrics';
-import { emitAlerts, evaluateAlerts } from '../../src/collections/observability/alerts';
+import { collectionsMetrics } from '../../../src/collections/observability/metrics';
+import { emitAlerts, evaluateAlerts } from '../../../src/collections/observability/alerts';
 
 export const config = {
   api: {

@@ -4,21 +4,53 @@ import { EMAIL_PROVIDER_ID } from './types';
 
 function env(name: string, fallback = ''): string {
   const g = globalThis as { process?: { env?: Record<string, string | undefined> } };
-  return g.process?.env?.[name] ?? fallback;
+  return (g.process?.env?.[name] ?? fallback).trim();
 }
 
-/** Build Reply-To: cq+{token}@{inbound domain} */
-export function buildReplyToAddress(token: string): string {
-  const domain = env('COLLECTION_INBOUND_DOMAIN', env('RESEND_INBOUND_DOMAIN', 'reply.collectquiet.app'));
+/** Resend test sender — works without buying a domain (to: your Resend account email only). */
+export const RESEND_TEST_FROM = 'onboarding@resend.dev';
+
+function normalizeFromEmail(raw: string): string {
+  const cleaned = raw.replace(/[\r\n\s"'<>]/g, '').trim().toLowerCase();
+  // Reject placeholders / broken values that Resend will refuse.
+  if (
+    !cleaned ||
+    !cleaned.includes('@') ||
+    cleaned.endsWith('@example.com') ||
+    cleaned.includes('example.com') ||
+    cleaned === 'reminders@collectquiet.app'
+  ) {
+    return RESEND_TEST_FROM;
+  }
+  return cleaned;
+}
+
+/** Build Reply-To: cq+{token}@{inbound domain} — or owner inbox in test mode. */
+export function buildReplyToAddress(token: string): string | null {
+  const fromEmail = normalizeFromEmail(
+    env('COLLECTION_EMAIL_FROM', env('RESEND_FROM', RESEND_TEST_FROM))
+  );
+  // Testing with resend.dev: route client replies to the founder's inbox.
+  if (fromEmail.endsWith('@resend.dev')) {
+    const owner = env('COLLECTION_TEST_REPLY_TO', env('COLLECTION_OWNER_EMAIL', '')).toLowerCase();
+    return owner.includes('@') && !owner.includes('example.com') ? owner : null;
+  }
+  const domain = env('COLLECTION_INBOUND_DOMAIN', env('RESEND_INBOUND_DOMAIN', ''));
+  if (!domain || domain.includes('example.com') || domain.endsWith('collectquiet.app')) {
+    return null;
+  }
   const safe = token.replace(/[^a-zA-Z0-9]/g, '');
   return `cq+${safe}@${domain}`;
 }
 
-/** From: "Name via CollectQuiet <reminders@verified-domain>" — never spoof arbitrary From. */
+/** From: "Name <address>" — keep simple for Resend parsing. */
 export function buildFromAddress(displayName: string): string {
-  const fromEmail = env('COLLECTION_EMAIL_FROM', env('RESEND_FROM', 'reminders@collectquiet.app'));
+  const fromEmail = normalizeFromEmail(
+    env('COLLECTION_EMAIL_FROM', env('RESEND_FROM', RESEND_TEST_FROM))
+  );
   const cleaned = displayName.replace(/[<>\r\n]/g, '').trim() || 'CollectQuiet';
-  return `${cleaned} via CollectQuiet <${fromEmail}>`;
+  // Avoid "via CollectQuiet" mid-string — some parsers mishandle it.
+  return `${cleaned} <${fromEmail}>`;
 }
 
 function formatMoney(amount: number, currency: string): string {

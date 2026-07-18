@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { loadCollectionsFlags } from '../../src/collections/flags';
+import { loadCollectionsFlags } from '../../../src/collections/flags';
 import {
   MockPaymentWebhookAdapter,
   processPaymentWebhook,
-} from '../../src/collections/payment/webhooks';
+} from '../../../src/collections/payment/webhooks';
 import { createSupabaseWorkerStore } from '../_lib/supabaseWorkerStore';
-import { CollectionsService } from '../../src/collections/service';
-import { collectionsMetrics } from '../../src/collections/observability/metrics';
+import { CollectionsService } from '../../../src/collections/service';
+import { collectionsMetrics } from '../../../src/collections/observability/metrics';
 
 /**
  * Payment provider webhook — disabled by default (COLLECTION_PAYMENT_WEBHOOK_ENABLED=false).

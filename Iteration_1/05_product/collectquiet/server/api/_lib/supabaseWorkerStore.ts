@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { WorkerStore } from '../../src/collections/store';
+import type { WorkerStore } from '../../../src/collections/store';
 import type {
   CollectionAutomation,
   CollectionEvent,
@@ -13,7 +13,7 @@ import type {
   CollectionChannel,
   InvoiceCollectionStatus,
   AutomationStatus,
-} from '../../src/collections/types';
+} from '../../../src/collections/types';
 
 type StepRow = Record<string, unknown>;
 
@@ -72,8 +72,60 @@ function stepToRow(step: ReminderStep): Record<string, unknown> {
   };
 }
 
-function unsupported(name: string): never {
-  throw new Error(`SupabaseWorkerStore.${name} is not used by the tick worker`);
+function stepToInsertRow(step: ReminderStep): Record<string, unknown> {
+  return {
+    id: step.id,
+    automation_id: step.automationId,
+    invoice_id: step.invoiceId,
+    user_id: step.userId,
+    sequence_number: step.sequenceNumber,
+    channel: step.channel,
+    scheduled_at: step.scheduledAt,
+    tone: step.tone,
+    template_id: step.templateId,
+    subject_snapshot: step.subjectSnapshot,
+    body_snapshot: step.bodySnapshot,
+    status: step.status,
+    attempt_count: step.attemptCount,
+    maximum_attempts: step.maximumAttempts,
+    claimed_at: step.claimedAt,
+    claim_expires_at: step.claimExpiresAt,
+    sent_at: step.sentAt,
+    skipped_at: step.skippedAt,
+    failed_at: step.failedAt,
+    provider_message_id: step.providerMessageId,
+    provider_thread_id: step.providerThreadId,
+    rfc_message_id: step.rfcMessageId,
+    idempotency_key: step.idempotencyKey,
+    last_error_code: step.lastErrorCode,
+    last_error_message: step.lastErrorMessage,
+    last_dry_run_at: step.lastDryRunAt,
+    manual_approved_at: step.manualApprovedAt,
+    created_at: step.createdAt,
+    updated_at: step.updatedAt,
+  };
+}
+
+function automationToInsertRow(row: CollectionAutomation): Record<string, unknown> {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    invoice_id: row.invoiceId,
+    status: row.status,
+    channel: row.channel,
+    timezone: row.timezone,
+    activated_at: row.activatedAt,
+    paused_at: row.pausedAt,
+    completed_at: row.completedAt,
+    cancelled_at: row.cancelledAt,
+    stop_reason: row.stopReason,
+    next_action_at: row.nextActionAt,
+    version: row.version,
+    reply_to_token: row.replyToToken,
+    dry_run: row.dryRun,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
 }
 
 export function createSupabaseWorkerStore(
@@ -245,21 +297,27 @@ export function createSupabaseWorkerStore(
       }));
     },
 
-    async insertAutomation() {
-      unsupported('insertAutomation');
+    async insertAutomation(row) {
+      const { error } = await sb.from('cq_collection_automations').insert(automationToInsertRow(row));
+      if (error) throw error;
+      return row;
     },
     async updateAutomation(row) {
       const { error } = await sb
         .from('cq_collection_automations')
         .update({
           status: row.status,
-          next_action_at: row.nextActionAt,
-          updated_at: row.updatedAt,
-          stop_reason: row.stopReason,
+          channel: row.channel,
+          timezone: row.timezone,
+          activated_at: row.activatedAt,
           paused_at: row.pausedAt,
-          cancelled_at: row.cancelledAt,
           completed_at: row.completedAt,
+          cancelled_at: row.cancelledAt,
+          stop_reason: row.stopReason,
+          next_action_at: row.nextActionAt,
           version: row.version,
+          dry_run: row.dryRun,
+          updated_at: row.updatedAt,
         })
         .eq('id', row.id)
         .eq('user_id', row.userId);
@@ -281,8 +339,10 @@ export function createSupabaseWorkerStore(
       if (!step || step.userId !== userId) return null;
       return step;
     },
-    async insertSteps() {
-      unsupported('insertSteps');
+    async insertSteps(steps) {
+      if (!steps.length) return;
+      const { error } = await sb.from('cq_reminder_steps').insert(steps.map(stepToInsertRow));
+      if (error) throw error;
     },
     async updateStep(step) {
       const { error } = await sb

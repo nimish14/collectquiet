@@ -63,14 +63,15 @@ function cfg(over: Partial<WorkerConfig> = {}): WorkerConfig {
 }
 
 describe('composeReminderEmail', () => {
-  it('includes snapshots, invoice facts, reply-to and does not attach files', () => {
+  it('includes snapshots, invoice facts, and uses Resend test from without reply-to', () => {
     const email = composeReminderEmail(baseCtx());
     expect(email.subject).toBe('Invoice INV-100 was due');
     expect(email.text).toContain('Please pay INV-100');
     expect(email.text).toContain('INV-100');
     expect(email.text).toContain('Alex');
-    expect(email.replyTo).toContain('cq+abc123token@');
-    expect(email.from).toContain('Jordan via CollectQuiet');
+    // Default test mode: onboarding@resend.dev, no custom reply-to domain.
+    expect(email.replyTo).toBeNull();
+    expect(email.from).toBe('Jordan <onboarding@resend.dev>');
     expect(email.headers['X-CQ-Reply-Token']).toBe('abc123token');
     expect(email.headers['X-CQ-Invoice-Id']).toBe(INVOICE);
     expect(email.attachments).toBeUndefined();

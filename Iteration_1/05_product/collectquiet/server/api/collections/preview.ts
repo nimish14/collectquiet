@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createSupabaseWorkerStore } from '../_lib/supabaseWorkerStore';
-import { ResendEmailProvider } from '../../src/collections/email/resend';
-import { MockEmailProvider } from '../../src/collections/email/mock';
-import { buildEmailPreview, sendTestEmailToMyself } from '../../src/collections/email/preview';
-import { loadReminderEmailContext } from '../../src/collections/email/outbound';
-import type { ReminderStep } from '../../src/collections/types';
+import { ResendEmailProvider } from '../../../src/collections/email/resend';
+import { MockEmailProvider } from '../../../src/collections/email/mock';
+import { buildEmailPreview, sendTestEmailToMyself } from '../../../src/collections/email/preview';
+import { loadReminderEmailContext } from '../../../src/collections/email/outbound';
+import type { ReminderStep } from '../../../src/collections/types';
 
 /**
  * Preview scheduled email or send a test copy to the signed-in user.

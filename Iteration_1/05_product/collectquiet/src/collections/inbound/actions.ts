@@ -16,6 +16,22 @@ export interface ActionResult {
   notificationKinds: string[];
 }
 
+/** Prefer the actual client reply text so Needs Attention can show what was said. */
+export function replyExcerpt(message: InboundMessage, max = 800): string | null {
+  const text = (message.textContent ?? '').trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function notificationBody(message: InboundMessage, note?: string | null): string | null {
+  const excerpt = replyExcerpt(message);
+  const cleanNote = (note ?? '').trim();
+  if (excerpt && cleanNote && cleanNote.toLowerCase() !== excerpt.toLowerCase()) {
+    return `${cleanNote}\n\n——\n${excerpt}`;
+  }
+  return excerpt || cleanNote || null;
+}
+
 async function cancelFirmReminders(store: WorkerStore, automationId: string): Promise<void> {
   const auto = await store.getAutomationById(automationId);
   if (!auto) return;
@@ -60,7 +76,7 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'reply_unmatched',
         title: 'Reply could not be matched',
-        body: classification.summary,
+        body: notificationBody(message, classification.summary),
         invoiceId: null,
         automationId: null,
         inboundMessageId: message.id,
@@ -96,7 +112,7 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'client_says_paid',
         title: 'Client says paid',
-        body: classification.summary,
+        body: notificationBody(message),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -117,9 +133,12 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'client_promises_payment',
         title: 'Client promises payment',
-        body: classification.promisedPaymentDate
-          ? `Detected date: ${classification.promisedPaymentDate} (needs your approval)`
-          : 'Payment promised — date not detected; please review',
+        body: notificationBody(
+          message,
+          classification.promisedPaymentDate
+            ? `Detected date: ${classification.promisedPaymentDate} (needs your approval)`
+            : 'Payment promised — date not detected; please review'
+        ),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -137,7 +156,7 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'client_disputes',
         title: 'Client disputes invoice',
-        body: classification.summary,
+        body: notificationBody(message),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -155,10 +174,12 @@ export async function applyClassificationActions(opts: {
           category === 'request_invoice_copy'
             ? 'Client requested invoice copy'
             : 'Client requested payment details',
-        body:
+        body: notificationBody(
+          message,
           category === 'request_payment_details'
             ? 'Suggest a reply using your verified payment details only. Never invent bank information.'
-            : 'Offer a user-approved resend after confirming the matched invoice.',
+            : 'Offer a user-approved resend after confirming the matched invoice.'
+        ),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -178,7 +199,10 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'wrong_contact',
         title: 'Wrong contact',
-        body: 'Client says this is the wrong contact. Update the recipient before sending again.',
+        body: notificationBody(
+          message,
+          'Client says this is the wrong contact. Update the recipient before sending again.'
+        ),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -192,9 +216,12 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'out_of_office',
         title: 'Client out of office',
-        body: classification.outOfOfficeReturnDate
-          ? `Return date suggested: ${classification.outOfOfficeReturnDate}`
-          : 'Out of office — suggest a new reminder date. Do not escalate during absence.',
+        body: notificationBody(
+          message,
+          classification.outOfOfficeReturnDate
+            ? `Return date suggested: ${classification.outOfOfficeReturnDate}`
+            : 'Out of office — suggest a new reminder date. Do not escalate during absence.'
+        ),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -215,7 +242,10 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'opt_out',
         title: 'Client opted out',
-        body: 'Automation cancelled. Future automated messaging blocked for this address.',
+        body: notificationBody(
+          message,
+          'Automation cancelled. Future automated messaging blocked for this address.'
+        ),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -235,7 +265,7 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind,
         title: category === 'unknown' ? 'Reply needs classification review' : 'Client replied',
-        body: classification.summary || message.textContent?.slice(0, 200) || null,
+        body: notificationBody(message),
         invoiceId,
         automationId,
         inboundMessageId: message.id,
@@ -253,7 +283,7 @@ export async function applyClassificationActions(opts: {
         userId: message.userId,
         kind: 'needs_attention',
         title: 'Inbound reply',
-        body: classification.summary,
+        body: notificationBody(message, classification.summary),
         invoiceId,
         automationId,
         inboundMessageId: message.id,

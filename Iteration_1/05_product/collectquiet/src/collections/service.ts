@@ -322,9 +322,12 @@ export class CollectionsService {
       updatedAt: nowUtcIso(),
     };
     await this.store.updateAutomation(paused);
-    await this.store.updateInvoice(ctx.userId, automation.invoiceId, {
-      collectionStatus: 'paused',
-    });
+    // Dispute / payment callers own the final invoice collection_status.
+    if (reason !== 'dispute' && reason !== 'paid') {
+      await this.store.updateInvoice(ctx.userId, automation.invoiceId, {
+        collectionStatus: 'paused',
+      });
+    }
     await this.writeEvent(ctx, {
       invoiceId: automation.invoiceId,
       automationId,
@@ -548,21 +551,54 @@ export class CollectionsService {
     metadata: Record<string, unknown> = {}
   ): Promise<CollectionAutomation | null> {
     await this.requireInvoice(ctx.userId, invoiceId);
+    const open = await this.store.findOpenAutomationForInvoice(ctx.userId, invoiceId);
+    let automation: CollectionAutomation | null = open;
+
+    if (open && (open.status === 'active' || open.status === 'awaiting_user')) {
+      automation = await this.pauseCollectionAutomation(ctx, open.id, 'dispute');
+    } else if (open && open.status === 'paused' && open.stopReason !== 'dispute') {
+      automation = await this.store.updateAutomation({
+        ...open,
+        stopReason: 'dispute',
+        version: open.version + 1,
+        updatedAt: nowUtcIso(),
+      });
+    }
+
+    // Final invoice state must remain disputed (pause must not overwrite this).
     await this.store.updateInvoice(ctx.userId, invoiceId, {
       collectionStatus: 'disputed',
     });
 
-    const open = await this.store.findOpenAutomationForInvoice(ctx.userId, invoiceId);
-    let automation: CollectionAutomation | null = null;
-    if (open && open.status === 'active') {
-      automation = await this.pauseCollectionAutomation(ctx, open.id, 'dispute');
+    if (open) {
+      await this.skipPendingSteps(ctx, open.id, 'cancelled', 'dispute');
+      const cleared: CollectionAutomation = {
+        ...(automation ?? open),
+        nextActionAt: null,
+        updatedAt: nowUtcIso(),
+        version: (automation ?? open).version + 1,
+      };
+      automation = await this.store.updateAutomation(cleared);
     }
+
+    await this.store.insertNotification({
+      id: id(),
+      userId: ctx.userId,
+      kind: 'client_disputes',
+      title: 'Invoice marked disputed',
+      body: 'Automatic follow-ups paused and pending reminders cancelled. Review before chasing again.',
+      invoiceId,
+      automationId: automation?.id ?? open?.id ?? null,
+      inboundMessageId: null,
+      readAt: null,
+      createdAt: nowUtcIso(),
+    });
 
     await this.writeEvent(ctx, {
       invoiceId,
       automationId: automation?.id ?? open?.id ?? null,
       eventType: 'dispute_received',
-      metadata,
+      metadata: { ...metadata, source: ctx.source ?? 'user' },
     });
     return automation;
   }

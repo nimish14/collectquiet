@@ -25,7 +25,7 @@ flowchart LR
 | Layer | Responsibility |
 |-------|----------------|
 | **UI** (`src/main.ts`, `src/ui/*`) | Invoice form, setup, activation summary, detail card, Needs Attention |
-| **API** (`api/collections/*`, `api/webhooks/*`) | Auth, feature flags, provider adapters |
+| **API** (`server/api/*` → bundled to `api/*` at build) | Auth, feature flags, provider adapters |
 | **Domain** (`src/collections/service.ts`) | State machine, activation, pause/resume, mark paid, promises |
 | **Worker** (`src/collections/worker/tick.ts`) | Atomic claim, safety re-read, send / dry-run, retry |
 | **Inbound** (`src/collections/inbound/*`) | Verify → dedupe → match → pause → classify → actions |

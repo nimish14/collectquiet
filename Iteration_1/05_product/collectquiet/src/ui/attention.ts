@@ -2,6 +2,26 @@ import { escapeHtml } from '../lib/escape';
 import type { AttentionItem } from '../lib/collections-client';
 import { labelAttentionKind } from './automation-helpers';
 
+function replyBlockHtml(item: AttentionItem): string {
+  const text = (item.replyText || item.body || '').trim();
+  if (!text) return '';
+
+  // If body already embeds "note —— reply", show the full text in the quote.
+  const meta = [
+    item.replyFrom ? `From ${escapeHtml(item.replyFrom)}` : '',
+    item.replySubject ? `Subject: ${escapeHtml(item.replySubject)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return `
+    <blockquote class="attention-reply">
+      <p class="attention-reply-label">Client reply</p>
+      ${meta ? `<p class="muted attention-reply-meta">${meta}</p>` : ''}
+      <pre class="attention-reply-text">${escapeHtml(text)}</pre>
+    </blockquote>`;
+}
+
 export function attentionPageHtml(opts: {
   loading: boolean;
   error: string | null;
@@ -35,9 +55,14 @@ export function attentionPageHtml(opts: {
         </header>
         <h3>${escapeHtml(item.title)}</h3>
         <p class="muted">${escapeHtml(invLabel)}</p>
-        ${item.body ? `<p>${escapeHtml(item.body)}</p>` : ''}
+        ${replyBlockHtml(item)}
         <p class="recommended"><strong>Recommended:</strong> ${escapeHtml(item.recommendedAction)}</p>
         <div class="attention-actions">
+          ${
+            item.kind === 'client_says_paid' && item.invoiceId
+              ? `<button class="btn btn-sm btn-ok" data-attention-confirm-paid="${escapeHtml(item.invoiceId)}" data-notification-id="${escapeHtml(item.id)}">Confirm paid</button>`
+              : ''
+          }
           ${item.invoiceId ? `<button class="btn btn-sm btn-primary" data-attention-open="${escapeHtml(item.invoiceId)}">Open invoice</button>` : ''}
           <button class="btn btn-sm" data-attention-resolve="${escapeHtml(item.id)}">Mark resolved</button>
         </div>

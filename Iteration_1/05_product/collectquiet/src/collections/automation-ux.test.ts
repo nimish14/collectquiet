@@ -201,6 +201,8 @@ describe('automation UI renderers', () => {
     expect(html).toContain('Pause');
     expect(html).toContain('Send now');
     expect(html).toContain('Needs attention');
+    expect(html).toContain('Email delivery is in early access');
+    expect(html).not.toContain('nimishpande11@gmail.com');
     expect(html).toContain('Automation activated');
     expect(html).toContain('audit timeline');
   });
@@ -222,7 +224,10 @@ describe('automation UI renderers', () => {
           id: 'n1',
           kind: 'client_says_paid',
           title: 'Client says paid',
-          body: 'Check the transfer',
+          body: 'Paid. Please check',
+          replyText: 'Paid. Please check',
+          replyFrom: 'client@example.com',
+          replySubject: 'Re: Invoice INV-100',
           invoiceId: 'inv-1',
           automationId: 'auto-1',
           recommendedAction: 'Confirm payment',
@@ -232,7 +237,10 @@ describe('automation UI renderers', () => {
       invoiceLabels: { 'inv-1': 'INV-100 · Acme' },
     });
     expect(populated).toContain('Payment claimed but not confirmed');
+    expect(populated).toContain('Client reply');
+    expect(populated).toContain('Paid. Please check');
     expect(populated).toContain('Recommended');
+    expect(populated).toContain('Confirm paid');
     expect(populated).toContain('Mark resolved');
   });
 

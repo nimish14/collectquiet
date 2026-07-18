@@ -59,6 +59,9 @@ interface State {
   user: User | null;
   loading: boolean;
   authMode: 'signin' | 'signup';
+  authBusy: boolean;
+  authError: string | null;
+  authEmail: string;
   invoices: Invoice[];
   logs: Awaited<ReturnType<typeof fetchLogs>>;
   settings: AppSettings;
@@ -103,6 +106,9 @@ const state: State = {
   user: null,
   loading: true,
   authMode: 'signin',
+  authBusy: false,
+  authError: null,
+  authEmail: '',
   invoices: [],
   logs: [],
   settings: {
@@ -487,60 +493,67 @@ async function addInvoice(data: FormData): Promise<void> {
 
 async function handleSignIn(data: FormData): Promise<void> {
   if (!isSupabaseConfigured) {
-    toast('App is temporarily unavailable. Please try again later.', true);
+    state.authError = 'App is temporarily unavailable. Please try again later.';
+    render();
     return;
   }
-  const email = String(data.get('email'));
-  const password = String(data.get('password'));
+  const email = String(data.get('email') ?? '').trim();
+  const password = String(data.get('password') ?? '');
+  state.authEmail = email;
+  state.authBusy = true;
+  state.authError = null;
+  render();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) toast(authErrorMessage(error.message, 'signin'), true);
-  else {
-    state.view = 'dashboard';
-    toast('Signed in.');
+  state.authBusy = false;
+  if (error) {
+    state.authError = authErrorMessage(error.message, 'signin');
+    render();
+    return;
   }
+  state.view = 'dashboard';
+  state.authError = null;
+  toast('Signed in.');
 }
 
 async function handleSignUp(data: FormData): Promise<void> {
   if (!isSupabaseConfigured) {
-    toast('App is temporarily unavailable. Please try again later.', true);
+    state.authError = 'App is temporarily unavailable. Please try again later.';
+    render();
     return;
   }
-  const email = String(data.get('email'));
-  const password = String(data.get('password'));
+  const email = String(data.get('email') ?? '').trim();
+  const password = String(data.get('password') ?? '');
+  state.authEmail = email;
   if (password.length < 8) {
-    toast('Password must be at least 8 characters.', true);
+    state.authError = 'Password must be at least 8 characters.';
+    render();
     return;
   }
+  state.authBusy = true;
+  state.authError = null;
+  render();
   const { data: authData, error } = await supabase.auth.signUp({
     email,
     password,
     options: { emailRedirectTo: `${window.location.origin}/` },
   });
+  state.authBusy = false;
   if (error) {
-    toast(authErrorMessage(error.message, 'signup'), true);
+    state.authError = authErrorMessage(error.message, 'signup');
+    render();
     return;
   }
   if (authData.session) {
     state.view = 'dashboard';
+    state.authError = null;
     toast('Account created. You are signed in.');
-    render();
     return;
   }
-  // Confirm-email is still on in Supabase: account exists but no session.
+  // Confirm-email still on in Supabase: account exists but no session.
   state.authMode = 'signin';
-  toast(
-    'Account created, but email confirmation is still required in Supabase. Turn Confirm email OFF in the dashboard, then sign in.',
-    true
-  );
+  state.authError =
+    'Account created. If you cannot sign in yet, reply to the invite and we will activate your account.';
   render();
-}
-
-async function handleResetPassword(_email: string): Promise<void> {
-  // Built-in Supabase email (~2/hour) makes reset unreliable; custom SMTP not configured yet.
-  toast(
-    'Password reset by email is not set up yet. Sign in with the password you used at signup, or ask the owner to reset it in Supabase.',
-    true
-  );
 }
 
 async function handleFeedbackSubmit(data: FormData): Promise<void> {
@@ -711,18 +724,35 @@ function landingHtml(): string {
 
 function authHtml(): string {
   const isSignIn = state.authMode === 'signin';
+  const busy = state.authBusy;
   return `
   <div class="page auth-page">
-    <h1>${isSignIn ? 'Sign in' : 'Create account'}</h1>
-    <p class="lead">${isSignIn ? 'Your invoices and reminder history live in your account.' : 'Pick a password with at least 8 characters.'}</p>
-    ${isSignIn ? '<p class="muted auth-note">Password reset by email is not available yet. Use the password from signup.</p>' : ''}
-    <form class="settings-form" id="auth-form">
-      <label>Email<input name="email" type="email" required autocomplete="email" /></label>
-      <label>Password<input name="password" type="password" required minlength="8" autocomplete="${isSignIn ? 'current-password' : 'new-password'}" /></label>
-      <button class="btn btn-primary" type="submit">${isSignIn ? 'Sign in' : 'Sign up'}</button>
-    </form>
-    <p class="muted"><button class="link-btn" data-auth-toggle>${isSignIn ? 'Need an account? Sign up' : 'Already have an account? Sign in'}</button></p>
-    ${isSignIn ? '<p class="muted"><button class="link-btn" data-reset-password>Forgot password?</button></p>' : ''}
+    <div class="auth-card panel">
+      <p class="eyebrow">${isSignIn ? 'Welcome back' : 'Early access'}</p>
+      <h1>${isSignIn ? 'Sign in' : 'Create your account'}</h1>
+      <p class="lead">${
+        isSignIn
+          ? 'Access your invoices and reminder schedule.'
+          : 'Free to try. Use any email and a password with at least 8 characters.'
+      }</p>
+      ${state.authError ? `<p class="form-error" role="alert">${escapeHtml(state.authError)}</p>` : ''}
+      <form class="settings-form auth-form" id="auth-form">
+        <label>Email
+          <input name="email" type="email" required autocomplete="email" value="${escapeHtml(state.authEmail)}" ${busy ? 'disabled' : ''} />
+        </label>
+        <label>Password
+          <input name="password" type="password" required minlength="8" autocomplete="${isSignIn ? 'current-password' : 'new-password'}" ${busy ? 'disabled' : ''} />
+        </label>
+        <button class="btn btn-primary" type="submit" ${busy ? 'disabled aria-busy="true"' : ''}>
+          ${busy ? (isSignIn ? 'Signing in…' : 'Creating account…') : isSignIn ? 'Sign in' : 'Create account'}
+        </button>
+      </form>
+      <p class="muted auth-switch">
+        <button class="link-btn" data-auth-toggle ${busy ? 'disabled' : ''}>
+          ${isSignIn ? 'Need an account? Create one' : 'Already have an account? Sign in'}
+        </button>
+      </p>
+    </div>
   </div>`;
 }
 
@@ -1058,12 +1088,16 @@ function shell(): string {
               navLink('attention', attentionCount ? `Needs Attention (${attentionCount})` : 'Needs Attention') +
               navLink('sequences', 'Messages') +
               navLink('settings', 'Settings')
-            : navLink('auth', 'Sign in')
+            : view === 'auth'
+              ? ''
+              : navLink('auth', 'Sign in')
         }
       </div>
       ${state.session
         ? `<span class="nav-user">${userLabel}</span><button class="btn btn-ghost btn-sm" data-sign-out>Sign out</button>`
-        : `<button class="btn btn-primary btn-sm nav-signin" data-nav="auth">Sign in</button>`}
+        : view === 'auth'
+          ? ''
+          : `<button class="btn btn-primary btn-sm nav-signin" data-nav="auth">Sign in</button>`}
     </nav>
     <main>${content}</main>
     <footer class="footer"><p>CollectQuiet · Invoice reminders for freelancers · <a href="https://collectquiet.vercel.app">collectquiet.vercel.app</a> · <button class="link-btn" data-open-feedback>Send feedback</button></p></footer>
@@ -1101,12 +1135,16 @@ function bindEvents(): void {
   document.querySelector('[data-sign-out]')?.addEventListener('click', () => void handleSignOut());
 
   document.querySelector('[data-auth-toggle]')?.addEventListener('click', () => {
+    const emailInput = document.querySelector('#auth-form input[name="email"]') as HTMLInputElement | null;
+    if (emailInput?.value) state.authEmail = emailInput.value.trim();
     state.authMode = state.authMode === 'signin' ? 'signup' : 'signin';
+    state.authError = null;
     render();
   });
 
   document.getElementById('auth-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (state.authBusy) return;
     const fd = new FormData(e.target as HTMLFormElement);
     void (state.authMode === 'signin' ? handleSignIn(fd) : handleSignUp(fd));
   });
@@ -1190,15 +1228,6 @@ function bindEvents(): void {
       .then(() => toast('Sequence reset to defaults.'))
       .catch((err) => toast(err instanceof Error ? err.message : 'Reset failed', true));
     render();
-  });
-
-  document.querySelector('[data-reset-password]')?.addEventListener('click', () => {
-    const email = (document.querySelector('#auth-form input[name="email"]') as HTMLInputElement)?.value;
-    if (!email) {
-      toast('Enter your email first.', true);
-      return;
-    }
-    void handleResetPassword(email);
   });
 
   document.querySelector('[data-copy-preview]')?.addEventListener('click', () => {
@@ -1289,6 +1318,28 @@ function bindAttentionEvents(): void {
         .catch((err) => toast(err instanceof Error ? err.message : 'Resolve failed', true));
     });
   });
+
+  document.querySelectorAll('[data-attention-confirm-paid]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const invoiceId = (el as HTMLElement).dataset.attentionConfirmPaid!;
+      const notificationId = (el as HTMLElement).dataset.notificationId;
+      if (!confirm('Confirm you received payment? This marks the invoice paid and closes the chase.')) {
+        return;
+      }
+      void collectionsRequest({
+        action: 'confirm_paid',
+        invoiceId,
+        ...(notificationId ? { notificationId } : {}),
+      })
+        .then(async () => {
+          toast('Payment confirmed. Invoice closed.');
+          if (state.user) state.invoices = await fetchInvoices(state.user.id);
+          await loadAttention();
+          if (state.selectedId === invoiceId) await loadAutomationForSelected();
+        })
+        .catch((err) => toast(err instanceof Error ? err.message : 'Confirm paid failed', true));
+    });
+  });
 }
 
 function bindAutomationEvents(): void {
@@ -1339,9 +1390,19 @@ function bindAutomationEvents(): void {
       afterDispute,
       confirm: afterDispute,
     })
-      .then(() => {
-        toast('Automation resumed.');
-        return loadAutomationForSelected();
+      .then(async () => {
+        toast(
+          afterDispute
+            ? 'Dispute cleared. Add or edit future reminders to continue chasing.'
+            : 'Automation resumed.'
+        );
+        await loadAutomationForSelected();
+        if (afterDispute && state.selectedId) {
+          const pending = state.automationSnapshot?.steps.some(
+            (s) => s.status === 'pending' || s.status === 'retry_scheduled'
+          );
+          if (!pending) openAutoSetup(state.selectedId, 'edit');
+        }
       })
       .catch((err) => toast(err instanceof Error ? err.message : 'Resume failed', true));
   });
@@ -1372,14 +1433,38 @@ function bindAutomationEvents(): void {
     if (next && (next.tone === 'firm' || next.tone === 'final') && !next.manualApprovedAt && !firm) {
       return;
     }
-    void collectionsRequest({
+    void collectionsRequest<{
+      ok: boolean;
+      tick?: {
+        sent?: number;
+        dryRunLogged?: number;
+        failed?: number;
+        useRecording?: boolean;
+        emailSendingEnabled?: boolean;
+      };
+      stepStatus?: string | null;
+      stepError?: string | null;
+    }>({
       action: 'send_now',
       automationId: id,
       confirm: true,
       firmApproved: Boolean(firm || next?.manualApprovedAt),
     })
-      .then(() => {
-        toast('Next reminder queued to send now.');
+      .then((result) => {
+        if (result.tick?.sent && result.tick.sent > 0) {
+          toast('Reminder sent.');
+        } else if (result.tick?.dryRunLogged && result.tick.dryRunLogged > 0) {
+          toast('Dry-run only — email sending is not fully enabled.', true);
+        } else if (result.tick?.failed && result.tick.failed > 0) {
+          toast(`Send failed${result.stepError ? `: ${result.stepError}` : ''}. Check Resend/from address.`, true);
+        } else if (result.stepStatus === 'sent') {
+          toast('Reminder sent.');
+        } else {
+          toast(
+            `Send finished with status ${result.stepStatus ?? 'unknown'}${result.stepError ? ` (${result.stepError})` : ''}.`,
+            true
+          );
+        }
         return loadAutomationForSelected();
       })
       .catch((err) => toast(err instanceof Error ? err.message : 'Send now failed', true));
@@ -1401,13 +1486,51 @@ function bindAutomationEvents(): void {
     if (state.selectedId) void markPaid(state.selectedId);
   });
 
-  document.querySelector('[data-auto-dispute]')?.addEventListener('click', () => {
+  document.querySelector('[data-auto-log-reply]')?.addEventListener('click', () => {
     if (!state.selectedId) return;
-    if (!confirm('Mark this invoice as disputed? Automation will pause.')) return;
+    const text = window.prompt(
+      'Paste the client reply (until inbound email domain is set up, replies land in your inbox):'
+    );
+    if (text == null) return;
+    const trimmed = text.trim();
+    if (!trimmed) {
+      toast('Reply text is required.', true);
+      return;
+    }
+    void collectionsRequest<{
+      ok: boolean;
+      classification: string | null;
+      summary: string | null;
+    }>({
+      action: 'ingest_reply',
+      invoiceId: state.selectedId,
+      text: trimmed,
+    })
+      .then(async (res) => {
+        const kind = res.classification ?? 'reply';
+        toast(
+          kind === 'payment_claimed' || kind === 'payment_claim'
+            ? 'Client says paid — check Needs Attention to confirm.'
+            : `Reply logged (${kind}). Check Needs Attention.`
+        );
+        await loadAutomationForSelected();
+        void loadAttention();
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : 'Could not log reply', true));
+  });
+
+  document.querySelector('[data-auto-dispute]')?.addEventListener('click', () => {
+    if (!state.selectedId || !state.user) return;
+    if (!confirm('Mark this invoice as disputed? Automation will pause and pending reminders will be cancelled.')) {
+      return;
+    }
+    const userId = state.user.id;
     void collectionsRequest({ action: 'mark_disputed', invoiceId: state.selectedId })
-      .then(() => {
+      .then(async () => {
         toast('Marked disputed. Automation paused.');
-        return loadAutomationForSelected();
+        state.invoices = await fetchInvoices(userId);
+        await loadAutomationForSelected();
+        void loadAttention();
       })
       .catch((err) => toast(err instanceof Error ? err.message : 'Dispute failed', true));
   });

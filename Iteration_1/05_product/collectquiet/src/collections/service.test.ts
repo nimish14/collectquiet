@@ -134,6 +134,33 @@ describe('CollectionsService', () => {
     });
   });
 
+  it('marks invoice disputed without leaving collection_status paused', async () => {
+    const ctx = { userId: USER_A };
+    const auto = await svc.createCollectionAutomation(ctx, {
+      invoiceId: INVOICE_A,
+      timezone: 'UTC',
+    });
+    await svc.activateCollectionAutomation(ctx, auto.id, futureReminders(3));
+    const disputed = await svc.markInvoiceDisputed(ctx, INVOICE_A);
+    expect(disputed?.status).toBe('paused');
+    expect(disputed?.stopReason).toBe('dispute');
+    expect(disputed?.nextActionAt).toBeNull();
+
+    const inv = await store.getInvoice(USER_A, INVOICE_A);
+    expect(inv?.collectionStatus).toBe('disputed');
+
+    const steps = await store.listSteps(USER_A, auto.id);
+    expect(steps.every((s) => s.status === 'cancelled')).toBe(true);
+
+    const events = await store.listEvents(USER_A, auto.id);
+    expect(events.some((e) => e.eventType === 'dispute_received')).toBe(true);
+    expect(store.notifications.some((n) => n.kind === 'client_disputes')).toBe(true);
+
+    await expect(svc.resumeCollectionAutomation(ctx, auto.id)).rejects.toMatchObject({
+      code: 'invoice_blocked',
+    });
+  });
+
   it('marks invoice paid and cancels future reminders', async () => {
     const ctx = { userId: USER_A };
     const auto = await svc.createCollectionAutomation(ctx, {

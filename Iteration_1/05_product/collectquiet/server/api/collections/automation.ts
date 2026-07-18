@@ -1,15 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { CollectionsService } from '../../src/collections/service';
+import { CollectionsService } from '../../../src/collections/service';
 import { createSupabaseWorkerStore } from '../_lib/supabaseWorkerStore';
-import type { PlannedReminderInput, ReminderTone } from '../../src/collections/types';
-import { dateTimeLocalStringToUtcIso } from '../../src/collections/time';
-import { buildEmailPreview, sendTestEmailToMyself } from '../../src/collections/email/preview';
-import { loadReminderEmailContext } from '../../src/collections/email/outbound';
-import { ResendEmailProvider } from '../../src/collections/email/resend';
-import { MockEmailProvider } from '../../src/collections/email/mock';
-import { isUserAllowed, loadCollectionsFlags } from '../../src/collections/flags';
-import { collectionsMetrics } from '../../src/collections/observability/metrics';
+import { isSupabaseAuthConfigured, userFromRequest } from '../_lib/auth';
+import type { PlannedReminderInput, ReminderTone } from '../../../src/collections/types';
+import { dateTimeLocalStringToUtcIso } from '../../../src/collections/time';
+import { buildEmailPreview, sendTestEmailToMyself } from '../../../src/collections/email/preview';
+import { loadReminderEmailContext } from '../../../src/collections/email/outbound';
+import { ResendEmailProvider } from '../../../src/collections/email/resend';
+import { MockEmailProvider } from '../../../src/collections/email/mock';
+import { isUserAllowed, loadCollectionsFlags } from '../../../src/collections/flags';
+import { collectionsMetrics } from '../../../src/collections/observability/metrics';
+import { runCollectionsTick } from '../_lib/runTick';
+import { processManualClientReply } from '../../../src/collections/inbound/manualReply';
 
 const ATTENTION_ACTIONS: Record<string, string> = {
   client_says_paid: 'Confirm payment received, or keep chasing if it was not paid.',
@@ -24,23 +27,6 @@ const ATTENTION_ACTIONS: Record<string, string> = {
   needs_attention: 'Open the conversation and choose the next step.',
   retry_exhaustion: 'Delivery kept failing. Fix the contact or cancel automation.',
 };
-
-async function userFromJwt(req: VercelRequest): Promise<{ id: string; email?: string } | null> {
-  const auth = req.headers.authorization;
-  const jwt =
-    typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : null;
-  if (!jwt) return null;
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const anon = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-  if (!url || !anon) return null;
-  const client = createClient(url, anon, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data, error } = await client.auth.getUser();
-  if (error || !data.user) return null;
-  return { id: data.user.id, email: data.user.email };
-}
 
 function serviceSb(): SupabaseClient {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -102,7 +88,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
-  const user = await userFromJwt(req);
+  if (!isSupabaseAuthConfigured()) {
+    res.status(503).json({ ok: false, error: 'supabase_not_configured' });
+    return;
+  }
+
+  const user = await userFromRequest(req);
   if (!user) {
     res.status(401).json({ ok: false, error: 'unauthorized' });
     return;
@@ -126,6 +117,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     'send_now',
     'mark_disputed',
     'test_email',
+    'ingest_reply',
+    'confirm_paid',
   ]);
   if (mutatingPilotActions.has(action)) {
     if (!flags.automationEnabled) {
@@ -193,6 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
         res.status(200).json({
           ok: true,
+          collectionStatus: inv.collectionStatus,
           automation: automation
             ? {
                 id: automation.id,
@@ -506,7 +500,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           metadata: { action: 'send_now' },
           occurredAt: nowIso,
         });
-        res.status(200).json({ ok: true, scheduledAt: nowIso });
+
+        // Send immediately — do not wait for the daily Hobby cron.
+        const { summary, useRecording, workerConfig } = await runCollectionsTick(
+          crypto.randomUUID()
+        );
+        const stepAfter = await store.getStepById(next.id);
+        res.status(200).json({
+          ok: true,
+          scheduledAt: nowIso,
+          tick: {
+            claimed: summary.claimed,
+            sent: summary.sent,
+            dryRunLogged: summary.dryRunLogged,
+            failed: summary.failed,
+            skipped: summary.skipped,
+            dryRun: summary.dryRun,
+            emailSendingEnabled: workerConfig.emailSendingEnabled,
+            useRecording,
+          },
+          stepStatus: stepAfter?.status ?? null,
+          stepError: stepAfter?.lastErrorCode ?? null,
+        });
         return;
       }
 
@@ -524,19 +539,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
       case 'attention': {
         const notes = await store.listNotifications(user.id);
-        const items = notes
-          .filter((n) => !n.readAt)
-          .map((n) => ({
+        const unread = notes.filter((n) => !n.readAt);
+        const inboundIds = [
+          ...new Set(
+            unread
+              .map((n) => n.inboundMessageId)
+              .filter((id): id is string => Boolean(id))
+          ),
+        ];
+        const inboundById: Record<
+          string,
+          { text: string | null; subject: string | null; from: string | null }
+        > = {};
+        if (inboundIds.length) {
+          const sb = serviceSb();
+          const { data: inboundRows, error: inboundErr } = await sb
+            .from('cq_inbound_messages')
+            .select('id, text_content, subject, sender_address')
+            .eq('user_id', user.id)
+            .in('id', inboundIds);
+          if (inboundErr) throw inboundErr;
+          for (const row of inboundRows ?? []) {
+            inboundById[row.id] = {
+              text: row.text_content ?? null,
+              subject: row.subject ?? null,
+              from: row.sender_address ?? null,
+            };
+          }
+        }
+        const items = unread.map((n) => {
+          const inbound = n.inboundMessageId ? inboundById[n.inboundMessageId] : null;
+          const replyText = inbound?.text?.trim() || n.body?.trim() || null;
+          return {
             id: n.id,
             kind: n.kind,
             title: n.title,
             body: n.body,
+            replyText,
+            replySubject: inbound?.subject ?? null,
+            replyFrom: inbound?.from ?? null,
             invoiceId: n.invoiceId,
             automationId: n.automationId,
             recommendedAction:
               ATTENTION_ACTIONS[n.kind] ?? 'Review and choose the next action.',
             createdAt: n.createdAt,
-          }));
+          };
+        });
         res.status(200).json({ ok: true, items });
         return;
       }
@@ -724,6 +772,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           providerMessageId: result.providerMessageId,
           reminderStateUnchanged: true,
           mock: useMock,
+        });
+        return;
+      }
+
+      case 'ingest_reply': {
+        const invoiceId = String(body.invoiceId ?? '');
+        const text = String(body.text ?? '').trim();
+        if (!invoiceId || !text) {
+          res.status(400).json({ ok: false, error: 'invoice_and_text_required' });
+          return;
+        }
+        const inv = await store.getInvoice(user.id, invoiceId);
+        if (!inv) {
+          res.status(403).json({ ok: false, error: 'forbidden' });
+          return;
+        }
+        const result = await processManualClientReply({
+          store,
+          service: svc,
+          userId: user.id,
+          invoiceId,
+          text,
+          subject: body.subject ? String(body.subject) : undefined,
+          fromEmail: body.fromEmail ? String(body.fromEmail) : inv.clientEmail,
+        });
+        if (!result.ok) {
+          res.status(400).json({ ok: false, error: result.error || 'ingest_failed' });
+          return;
+        }
+        collectionsMetrics.incr('replies');
+        if (result.classification?.category === 'payment_claimed') {
+          collectionsMetrics.incr('payment_claimed');
+        }
+        res.status(200).json({
+          ok: true,
+          classification: result.classification?.category ?? null,
+          summary: result.classification?.summary ?? null,
+          pausedAutomationId: result.pausedAutomationId ?? null,
+          inboundMessageId: result.message?.id ?? null,
+        });
+        return;
+      }
+
+      case 'confirm_paid': {
+        const invoiceId = String(body.invoiceId ?? '');
+        if (!invoiceId) {
+          res.status(400).json({ ok: false, error: 'invoice_id_required' });
+          return;
+        }
+        const inv = await store.getInvoice(user.id, invoiceId);
+        if (!inv) {
+          res.status(403).json({ ok: false, error: 'forbidden' });
+          return;
+        }
+        const paid = await svc.markInvoicePaid(ctx, invoiceId);
+        if (body.notificationId) {
+          const notificationId = String(body.notificationId);
+          const sb = serviceSb();
+          await sb
+            .from('cq_user_notifications')
+            .update({ read_at: new Date().toISOString() })
+            .eq('id', notificationId)
+            .eq('user_id', user.id);
+          const { data: n } = await sb
+            .from('cq_user_notifications')
+            .select('inbound_message_id')
+            .eq('id', notificationId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (n?.inbound_message_id) {
+            await sb
+              .from('cq_inbound_messages')
+              .update({
+                requires_review: false,
+                attention_cleared_at: new Date().toISOString(),
+              })
+              .eq('id', n.inbound_message_id)
+              .eq('user_id', user.id);
+          }
+        }
+        const updated = await store.getInvoice(user.id, invoiceId);
+        res.status(200).json({
+          ok: true,
+          invoiceId,
+          collectionStatus: updated?.collectionStatus ?? 'paid',
+          automationStatus: paid.automation?.status ?? null,
+          alreadyPaid: paid.alreadyPaid,
         });
         return;
       }

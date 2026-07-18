@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { CollectionsService } from '../../src/collections/service';
+import { CollectionsService } from '../../../src/collections/service';
 import { createSupabaseWorkerStore } from '../_lib/supabaseWorkerStore';
-import { processInboundWebhook } from '../../src/collections/inbound/pipeline';
-import { parseResendInboundPayload } from '../../src/collections/inbound/resendInbound';
-import { verifySvixSignature, ResendEmailProvider } from '../../src/collections/email/resend';
-import type { MatchStore } from '../../src/collections/inbound/match';
-import { loadCollectionsFlags } from '../../src/collections/flags';
-import { collectionsMetrics } from '../../src/collections/observability/metrics';
-import { emitAlerts, evaluateAlerts } from '../../src/collections/observability/alerts';
+import { processInboundWebhook } from '../../../src/collections/inbound/pipeline';
+import { parseResendInboundPayload } from '../../../src/collections/inbound/resendInbound';
+import { verifySvixSignature, ResendEmailProvider } from '../../../src/collections/email/resend';
+import type { MatchStore } from '../../../src/collections/inbound/match';
+import { loadCollectionsFlags } from '../../../src/collections/flags';
+import { collectionsMetrics } from '../../../src/collections/observability/metrics';
+import { emitAlerts, evaluateAlerts } from '../../../src/collections/observability/alerts';
 
 export const config = {
   api: {
